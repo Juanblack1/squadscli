@@ -9,18 +9,22 @@ import { runGenerateImageCommand } from "./commands/generate-image.js";
 import { runInitCommand } from "./commands/init.js";
 import { runPublishCommand } from "./commands/publish.js";
 import { runSoftwareFactoryCommand } from "./commands/run.js";
-import { resolveProvider } from "./config.js";
-import type { RunMode } from "./types.js";
+import { resolveEffort, resolveProvider } from "./config.js";
+import { listProviderNames } from "./provider-registry.js";
+import type { RunMode, RunStage } from "./types.js";
 
 function printHelp() {
   console.log(`software-factory
 
 Commands:
   software-factory init [--target path] [--force]
-  software-factory run --brief "..." [--name workflow] [--mode full-run|review|autonomy] [--provider openai|openai-compatible|opencode] [--workspace path] [--dry-run]
+  software-factory run --brief "..." [--name workflow] [--mode full-run|review|autonomy] [--provider ${listProviderNames().join("|")}] [--effort lite|balanced|deep] [--workspace path] [--dry-run]
+  software-factory create-prd --brief "..." [--name workflow]
+  software-factory create-techspec --brief "..." [--name workflow]
+  software-factory create-tasks --brief "..." [--name workflow]
   software-factory generate-image --prompt "..." --output path [--aspect-ratio 16:9]
-  software-factory doctor [--workspace path] [--provider openai|openai-compatible|opencode]
-  software-factory publish [--owner login] [--repo nome-do-repo]
+  software-factory doctor [--workspace path] [--provider ${listProviderNames().join("|")}]
+  software-factory publish [--owner login] [--repo nome-do-repo] [--github-packages]
 `);
 }
 
@@ -60,7 +64,7 @@ async function main() {
     return;
   }
 
-  if (command === "run") {
+  if (command === "run" || command === "create-prd" || command === "create-techspec" || command === "create-tasks") {
     const { values } = parseArgs({
       args: rest,
       options: {
@@ -69,6 +73,7 @@ async function main() {
         name: { type: "string" },
         mode: { type: "string" },
         provider: { type: "string" },
+        effort: { type: "string" },
         workspace: { type: "string" },
         "dry-run": { type: "boolean" },
       },
@@ -82,12 +87,22 @@ async function main() {
     });
     const mode = (values.mode || "full-run") as RunMode;
     const provider = resolveProvider(values.provider);
+    const effort = resolveEffort(values.effort);
+    const stageMap: Record<string, RunStage> = {
+      run: mode,
+      "create-prd": "prd",
+      "create-techspec": "techspec",
+      "create-tasks": "tasks",
+    };
+    const stage = stageMap[command];
 
     const result = await runSoftwareFactoryCommand({
       name: values.name,
       brief,
       workspaceDir,
       mode,
+      stage,
+      effort,
       provider,
       dryRun: Boolean(values["dry-run"]),
     });
@@ -147,11 +162,12 @@ async function main() {
   if (command === "publish") {
     const { values } = parseArgs({
       args: rest,
-      options: {
-        owner: { type: "string" },
-        repo: { type: "string" },
-        workspace: { type: "string" },
-      },
+            options: {
+                owner: { type: "string" },
+                repo: { type: "string" },
+                workspace: { type: "string" },
+                "github-packages": { type: "boolean" },
+            },
       allowPositionals: false,
     });
 
@@ -161,6 +177,7 @@ async function main() {
       repo: values.repo || "software-factory-cli",
       description:
         "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first, imagens via Gemini e rounds de review rastreaveis.",
+      githubPackages: Boolean(values["github-packages"]),
     });
 
     console.log(JSON.stringify(result, null, 2));

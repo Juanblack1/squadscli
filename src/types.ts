@@ -1,6 +1,16 @@
 export type RunMode = "full-run" | "review" | "autonomy";
 
-export type ProviderName = "openai" | "openai-compatible" | "opencode";
+export type RunStage = "full-run" | "prd" | "techspec" | "tasks" | "review" | "autonomy";
+
+export type EffortLevel = "lite" | "balanced" | "deep";
+
+export type ProviderName =
+  | "openai"
+  | "openai-compatible"
+  | "opencode"
+  | "codex"
+  | "claude"
+  | "gemini";
 
 export interface PromptPolicy {
   askWhenBlocked: boolean;
@@ -14,6 +24,7 @@ export interface SoftwareFactoryConfig {
   name: string;
   outputDir: string;
   defaultProvider: ProviderName;
+  defaultEffort: EffortLevel;
   promptPolicy: PromptPolicy;
 }
 
@@ -21,6 +32,8 @@ export interface RunRequest {
   name: string;
   brief: string;
   mode: RunMode;
+  stage: RunStage;
+  effort: EffortLevel;
   workspaceDir: string;
   stateDir: string;
   provider: ProviderName;
@@ -40,6 +53,14 @@ export interface ProviderResult {
 export interface ProviderAdapter {
   name: ProviderName;
   invoke(prompt: PromptBundle, request: RunRequest): Promise<ProviderResult>;
+}
+
+export interface ProviderProfile {
+  name: ProviderName;
+  kind: "api" | "cli";
+  description: string;
+  tokenStrategy: string;
+  envKeys: string[];
 }
 
 export interface WorkflowPaths {

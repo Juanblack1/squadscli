@@ -10,7 +10,8 @@ const configSchema = z.object({
   version: z.string(),
   name: z.string(),
   outputDir: z.string(),
-  defaultProvider: z.enum(["openai", "openai-compatible", "opencode"]),
+  defaultProvider: z.enum(["openai", "openai-compatible", "opencode", "codex", "claude", "gemini"]),
+  defaultEffort: z.enum(["lite", "balanced", "deep"]),
   promptPolicy: z.object({
     askWhenBlocked: z.boolean(),
     improvePrompts: z.boolean(),
@@ -32,7 +33,14 @@ export async function loadSoftwareFactoryConfig(workspaceDir: string): Promise<S
   }
 
   const raw = JSON.parse(await import("node:fs/promises").then((fs) => fs.readFile(configPath, "utf8")));
-  return configSchema.parse(raw);
+  return configSchema.parse({
+    ...DEFAULT_CONFIG,
+    ...raw,
+    promptPolicy: {
+      ...DEFAULT_CONFIG.promptPolicy,
+      ...(raw.promptPolicy || {}),
+    },
+  });
 }
 
 export function resolveProvider(preferred?: string, fallback?: ProviderName): ProviderName {
@@ -46,5 +54,27 @@ export function resolveProvider(preferred?: string, fallback?: ProviderName): Pr
     return "openai-compatible";
   }
 
+  if (candidate === "codex") {
+    return "codex";
+  }
+
+  if (candidate === "claude") {
+    return "claude";
+  }
+
+  if (candidate === "gemini") {
+    return "gemini";
+  }
+
   return "openai";
+}
+
+export function resolveEffort(preferred?: string, fallback?: SoftwareFactoryConfig["defaultEffort"]) {
+  const candidate = preferred ?? process.env.SF_EFFORT ?? fallback ?? DEFAULT_CONFIG.defaultEffort;
+
+  if (candidate === "lite" || candidate === "deep") {
+    return candidate;
+  }
+
+  return "balanced";
 }

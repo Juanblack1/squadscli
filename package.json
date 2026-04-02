@@ -1,5 +1,5 @@
 {
-  "name": "software-factory-cli",
+  "name": "@juanblack1/software-factory-cli",
   "version": "0.1.0",
   "description": "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first e imagens via Gemini.",
   "type": "module",
@@ -10,7 +10,8 @@
   "files": [
     "dist",
     "README.md",
-    ".env.example"
+    ".env.example",
+    ".npmrc.example"
   ],
   "scripts": {
     "build": "tsc -p tsconfig.json",
@@ -39,6 +40,9 @@
   "homepage": "https://github.com/Juanblack1/software-factory-cli#readme",
   "bugs": {
     "url": "https://github.com/Juanblack1/software-factory-cli/issues"
+  },
+  "publishConfig": {
+    "registry": "https://npm.pkg.github.com"
   },
   "dependencies": {
     "@google/genai": "^1.24.0",

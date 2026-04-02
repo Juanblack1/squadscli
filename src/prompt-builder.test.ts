@@ -9,6 +9,8 @@ describe("buildPrompt", () => {
       DEFAULT_CONFIG,
       "Criar dashboard de onboarding",
       "full-run",
+      "full-run",
+      "balanced",
       "C:/repo",
     );
 
@@ -22,17 +24,20 @@ describe("buildPrompt", () => {
       DEFAULT_CONFIG,
       "Revisar a feature atual",
       "review",
+      "review",
+      "balanced",
       "C:/repo",
     );
 
-    expect(prompt.system).toContain("Mode: review.");
+    expect(prompt.system).toContain("Stage: review.");
     expect(prompt.system).toContain("findings by severity");
   });
 
   it("embeds exact PRD and task headings for full-run mode", () => {
-    const prompt = buildPrompt(DEFAULT_CONFIG, "Criar feature", "full-run", "C:/repo");
+    const prompt = buildPrompt(DEFAULT_CONFIG, "Criar feature", "full-run", "full-run", "lite", "C:/repo");
 
-    expect(prompt.system).toContain("Mode: full-run.");
+    expect(prompt.system).toContain("Stage: full-run.");
     expect(prompt.user).toContain("Run mode: full-run");
+    expect(prompt.user).toContain("Effort level: lite");
   });
 });

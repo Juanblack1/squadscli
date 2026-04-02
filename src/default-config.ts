@@ -5,6 +5,7 @@ export const DEFAULT_CONFIG: SoftwareFactoryConfig = {
   name: "software-factory",
   outputDir: ".software-factory",
   defaultProvider: "openai",
+  defaultEffort: "balanced",
   promptPolicy: {
     askWhenBlocked: true,
     improvePrompts: true,
@@ -41,6 +42,39 @@ Use exatamente estas secoes de saida:
 ## Implementation Plan
 ## Quality And Review Gate
 ## Final Recommendation
+`;
+
+export const DEFAULT_PRD_PROMPT = `# PRD Stage
+
+Gere apenas o PRD consolidado da feature.
+
+Use exatamente estas secoes de saida:
+
+## Route Decision
+## Questions Or Assumptions
+## PRD
+`;
+
+export const DEFAULT_TECHSPEC_PROMPT = `# Tech Spec Stage
+
+Gere apenas o Tech Spec consolidado, assumindo que o PRD ja existe.
+
+Use exatamente estas secoes de saida:
+
+## Inputs Considered
+## Questions Or Assumptions
+## Tech Spec
+`;
+
+export const DEFAULT_TASKS_PROMPT = `# Tasks Stage
+
+Quebre o escopo em tarefas pequenas, independentes, com dependencias e evidencias objetivas.
+
+Use exatamente estas secoes de saida:
+
+## Inputs Considered
+## Task Breakdown
+## Suggested Execution Order
 `;
 
 export const DEFAULT_REVIEW_PROMPT = `# Review Mode
