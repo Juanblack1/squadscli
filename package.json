@@ -1,0 +1,58 @@
+{
+  "name": "software-factory-cli",
+  "version": "0.1.0",
+  "description": "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first e imagens via Gemini.",
+  "type": "module",
+  "bin": {
+    "software-factory": "dist/index.js"
+  },
+  "main": "dist/index.js",
+  "files": [
+    "dist",
+    "README.md",
+    ".env.example"
+  ],
+  "scripts": {
+    "build": "tsc -p tsconfig.json",
+    "dev": "tsx src/index.ts",
+    "test": "vitest run",
+    "check": "npm run build && npm run test"
+  },
+  "keywords": [
+    "cli",
+    "software-factory",
+    "opensquad",
+    "opencode",
+    "openai",
+    "gemini",
+    "workflow",
+    "prd",
+    "techspec",
+    "review"
+  ],
+  "author": "Juanblack1",
+  "license": "UNLICENSED",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/Juanblack1/software-factory-cli.git"
+  },
+  "homepage": "https://github.com/Juanblack1/software-factory-cli#readme",
+  "bugs": {
+    "url": "https://github.com/Juanblack1/software-factory-cli/issues"
+  },
+  "dependencies": {
+    "@google/genai": "^1.24.0",
+    "dotenv": "^17.3.1",
+    "openai": "^4.104.0",
+    "zod": "^3.25.76"
+  },
+  "devDependencies": {
+    "@types/node": "^24.6.0",
+    "tsx": "^4.21.0",
+    "typescript": "^5.9.3",
+    "vitest": "^4.1.1"
+  },
+  "engines": {
+    "node": ">=20.10.0"
+  }
+}

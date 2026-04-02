@@ -1,0 +1,57 @@
+export type RunMode = "full-run" | "review" | "autonomy";
+
+export type ProviderName = "openai" | "openai-compatible" | "opencode";
+
+export interface PromptPolicy {
+  askWhenBlocked: boolean;
+  improvePrompts: boolean;
+  requirePencilBeforeFrontend: boolean;
+  useGeminiForImages: boolean;
+}
+
+export interface SoftwareFactoryConfig {
+  version: string;
+  name: string;
+  outputDir: string;
+  defaultProvider: ProviderName;
+  promptPolicy: PromptPolicy;
+}
+
+export interface RunRequest {
+  name: string;
+  brief: string;
+  mode: RunMode;
+  workspaceDir: string;
+  stateDir: string;
+  provider: ProviderName;
+  dryRun: boolean;
+}
+
+export interface PromptBundle {
+  system: string;
+  user: string;
+}
+
+export interface ProviderResult {
+  text: string;
+  raw?: unknown;
+}
+
+export interface ProviderAdapter {
+  name: ProviderName;
+  invoke(prompt: PromptBundle, request: RunRequest): Promise<ProviderResult>;
+}
+
+export interface WorkflowPaths {
+  rootDir: string;
+  workflowDir: string;
+  memoryDir: string;
+  reviewsDir: string;
+  currentRunDir: string;
+  prdPath: string;
+  techspecPath: string;
+  tasksPath: string;
+  summaryPath: string;
+  sharedMemoryPath: string;
+  taskMemoryPath: string;
+}

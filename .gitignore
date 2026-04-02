@@ -1,0 +1,5 @@
+node_modules/
+dist/
+.software-factory/
+.env.local
+*.log
