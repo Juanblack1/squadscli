@@ -2,10 +2,18 @@ import { spawn } from "node:child_process";
 import fs from "node:fs/promises";
 import path from "node:path";
 
+function resolveExecutable(command: string) {
+  if (process.platform === "win32" && command === "npm") {
+    return "npm.cmd";
+  }
+
+  return command;
+}
+
 function runCommand(command: string, args: string[], options: string | { cwd: string; extraEnv?: Record<string, string> }) {
   return new Promise<string>((resolve, reject) => {
     const resolved = typeof options === "string" ? { cwd: options, extraEnv: {} } : options;
-    const child = spawn(command, args, {
+    const child = spawn(resolveExecutable(command), args, {
       cwd: resolved.cwd,
       shell: false,
       env: { ...process.env, ...resolved.extraEnv },
