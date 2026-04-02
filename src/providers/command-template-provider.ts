@@ -16,6 +16,20 @@ function resolveTemplate(name: ProviderName) {
   return process.env[envTemplateKey] || PROVIDER_COMMAND_TEMPLATES[name];
 }
 
+function buildProviderEnv(name: ProviderName) {
+  const env = { ...process.env } as Record<string, string | undefined>;
+
+  if (name === "opencode") {
+    for (const key of Object.keys(env)) {
+      if (key === "OPENCODE" || key.startsWith("OPENCODE_")) {
+        delete env[key];
+      }
+    }
+  }
+
+  return env;
+}
+
 export class CommandTemplateProvider implements ProviderAdapter {
   constructor(public name: ProviderName) {}
 
@@ -37,7 +51,7 @@ export class CommandTemplateProvider implements ProviderAdapter {
     return await new Promise<ProviderResult>((resolve, reject) => {
       const child = spawn(rendered, {
         cwd: request.workspaceDir,
-        env: process.env,
+        env: buildProviderEnv(this.name),
         shell: true,
       });
 

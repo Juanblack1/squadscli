@@ -79,7 +79,7 @@ OPENAI_COMPATIBLE_MODEL=...
 GEMINI_API_KEY=...
 GEMINI_IMAGE_MODEL=imagen-4.0-generate-001
 
-OPENCODE_COMMAND_TEMPLATE=opencode run --dir "{workspace}" --file "{promptFile}" "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains."
+OPENCODE_COMMAND_TEMPLATE=opencode run "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains." --dir "{workspace}" --file "{promptFile}"
 CODEX_COMMAND_TEMPLATE=codex exec < "{promptFile}"
 CLAUDE_COMMAND_TEMPLATE=claude -f "{promptFile}"
 GEMINI_COMMAND_TEMPLATE=gemini -p "{promptFile}"
