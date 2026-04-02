@@ -4,18 +4,22 @@ import path from "node:path";
 
 function resolveExecutable(command: string) {
   if (process.platform === "win32" && command === "npm") {
-    return "npm.cmd";
+    return "npm";
   }
 
   return command;
 }
 
-function runCommand(command: string, args: string[], options: string | { cwd: string; extraEnv?: Record<string, string> }) {
+function runCommand(
+  command: string,
+  args: string[],
+  options: string | { cwd: string; extraEnv?: Record<string, string>; shell?: boolean },
+) {
   return new Promise<string>((resolve, reject) => {
-    const resolved = typeof options === "string" ? { cwd: options, extraEnv: {} } : options;
+    const resolved = typeof options === "string" ? { cwd: options, extraEnv: {}, shell: false } : options;
     const child = spawn(resolveExecutable(command), args, {
       cwd: resolved.cwd,
-      shell: false,
+      shell: resolved.shell ?? false,
       env: { ...process.env, ...resolved.extraEnv },
     });
 
@@ -101,10 +105,10 @@ export async function runPublishCommand(options: {
 
   if (options.githubPackages) {
     try {
-      const token = await runCommand("gh", ["auth", "token"], projectDir);
+      const token = (await runCommand("gh", ["auth", "token"], projectDir)).trim();
       await runCommand("npm", ["publish", "--registry", "https://npm.pkg.github.com"], projectDirWithEnv(projectDir, {
         NODE_AUTH_TOKEN: token,
-      }));
+      }, true));
       packagePublished = true;
     } catch (error) {
       packagePublishError = error instanceof Error ? error.message : String(error);
@@ -114,6 +118,6 @@ export async function runPublishCommand(options: {
   return { repoSlug, url: `https://github.com/${repoSlug}`, packagePublished, packagePublishError };
 }
 
-function projectDirWithEnv(cwd: string, extraEnv: Record<string, string>) {
-  return { cwd, extraEnv };
+function projectDirWithEnv(cwd: string, extraEnv: Record<string, string>, shell = false) {
+  return { cwd, extraEnv, shell };
 }
