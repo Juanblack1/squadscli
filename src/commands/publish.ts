@@ -122,7 +122,7 @@ export async function runPublishCommand(options: {
       packagePublished = true;
     } catch (error) {
       const message = error instanceof Error ? error.message : String(error);
-      packagePublishError = message.includes("403")
+      packagePublishError = message.includes("403") || message.includes("ENEEDAUTH") || message.includes("need auth")
         ? `${message}\nDica: use um token dedicado em GITHUB_PACKAGES_TOKEN com escopo write:packages e, se necessario, repo.`
         : message;
     }
