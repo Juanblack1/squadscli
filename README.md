@@ -1,6 +1,6 @@
 # software-factory-cli
 
-CLI instalavel para rodar o `software-factory` fora deste workspace, com contrato operacional proprio, providers configuraveis, workflows por feature no estilo Compozy e politicas embutidas do squad.
+🚀 CLI instalavel para rodar o `software-factory` fora deste workspace, com contrato operacional proprio, providers configuraveis, workflows por feature e politicas embutidas do squad.
 
 ## O que esta CLI faz
 
@@ -15,7 +15,57 @@ CLI instalavel para rodar o `software-factory` fora deste workspace, com contrat
 - orienta o modelo a perguntar quando existir ambiguidade bloqueante
 - suporta perfis de custo `lite`, `balanced` e `deep` para gastar menos tokens sem perder rastreabilidade
 
-## Politicas operacionais embutidas
+## 🧠 Agentes do Squad e especialidades
+
+### Lideranca e produto
+
+- `🧭 JuanBlack`: lider de fluxo, gates, aprovacoes e roteamento entre especialistas
+- `📌 Otavio Objetivo`: descoberta, alinhamento do brief e PRD
+- `🧭 Sergio Sprint`: plano executavel, backlog e handoffs claros
+- `✨ Mila Melhorias`: backlog de melhoria continua e memoria enxuta do workflow
+
+### Pesquisa, contexto e prompt
+
+- `🔎 Explorer Atlas`: pesquisa multimodal de mercado, referencias e contexto externo
+- `💡 Iris Inovacao`: benchmark, elevacao de barra e referencias premium
+- `✍️ Paula Prompt`: prompts reutilizaveis, claros e fortes para cada etapa
+
+### UX, arquitetura e especificacao
+
+- `🧩 Yasmin UX`: jornada, interface, microcopy e gate Pencil-before-frontend
+- `🏗️ Sid Sistematico`: system design, modulos, trade-offs e topologia
+- `🧠 Tadeu Tech`: tech spec, contratos e estrategia de implementacao
+
+### Engenharia e implementacao
+
+- `🔌 Mica MCP`: skills, MCPs e integracoes com seguranca e padronizacao
+- `🗄️ Davi Dados`: banco, schema, migracoes e estrategias de acesso a dados
+- `⚙️ Bruno Backend`: dominio, regras, APIs e integracoes
+- `🖥️ Fernanda Frontend`: telas, fluxos e experiencia final
+- `☁️ Ivo Infra`: ambientes, pipelines, observabilidade e base operacional
+- `🚀 Diego Deploy`: rollout, monitoramento e rollback
+- `🌿 Guto GitHub`: branch, commit, PR, checks e trilha de release
+- `▲ Vera Vercel`: publicacao final na Vercel e smoke de entrega
+
+### Qualidade, risco e revisao
+
+- `🔐 Caio Cyber`: auth, dados, superficie de ataque e mitigacoes
+- `🧪 Tito Testes`: testes automatizados, smoke tecnico e E2E
+- `🧐 Aline Avalia`: aderencia a PRD, UX, seguranca e testes antes do QA final
+- `✅ Quirino Qualidade`: criterios de aceite, regressao e prontidao para gate
+- `🗣️ Livia Linguistica`: portugues do Brasil aplicado a produto, microcopy e mensagens de erro
+- `⚡ Pericles Performance`: gargalos, otimizacoes e prevencao de regressao de desempenho
+- `🧪 Clara Qualidade`: consolidacao final de evidencias de qualidade
+- `🧐 Rita Revisa`: revisao final de coerencia, risco e prontidao
+
+### Regras de operacao do time
+
+- `🎨 Pencil first`: qualquer tela nova ou mudanca visual relevante deve passar pelo Pencil antes do front-end
+- `🖼️ Gemini for images`: quando houver imagem real, a trilha padrao e Gemini Imagen
+- `💬 Ask when blocked`: quando faltar contexto decisivo, o agente pergunta antes de assumir
+- `💸 Token discipline`: o modo `lite` comprime contexto e prioriza tarefas pequenas e executaveis
+
+## 🛡️ Politicas operacionais embutidas
 
 - telas e UX devem ser desenhadas no Pencil antes de virarem codigo de site
 - frontend nao deve codar tela nova sem `ux-blueprint` ou desenho equivalente
@@ -23,7 +73,7 @@ CLI instalavel para rodar o `software-factory` fora deste workspace, com contrat
 - prompts sempre passam por camada de melhoria de contexto, restricoes e criterio de qualidade
 - em caso de duvida real, o modelo deve perguntar antes de chutar
 
-## Instalacao local
+## 📦 Instalacao local
 
 ```bash
 npm install
@@ -31,7 +81,7 @@ npm run build
 npm install -g .
 ```
 
-## Instalacao a partir de repositorio privado no GitHub
+## 🔒 Instalacao a partir de repositorio privado no GitHub
 
 Quando este pacote estiver em um repositorio proprio privado, voce pode instalar assim:
 
@@ -41,7 +91,7 @@ npm install -g git+ssh://git@github.com/Juanblack1/software-factory-cli.git
 
 Se preferir GitHub Packages, publique o pacote e instale via `.npmrc` autenticado.
 
-## Instalação via GitHub Packages
+## 📦 Instalação via GitHub Packages
 
 O pacote foi preparado para GitHub Packages com o nome:
 
@@ -62,7 +112,7 @@ Instalação:
 npm install -g @juanblack1/software-factory-cli
 ```
 
-## Configuracao
+## ⚙️ Configuracao
 
 Edite `.env`:
 
@@ -80,8 +130,8 @@ GEMINI_API_KEY=...
 GEMINI_IMAGE_MODEL=imagen-4.0-generate-001
 
 OPENCODE_COMMAND_TEMPLATE=opencode run "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains." --dir "{workspace}" --file "{promptFile}"
-CODEX_COMMAND_TEMPLATE=codex exec < "{promptFile}"
-CLAUDE_COMMAND_TEMPLATE=claude -f "{promptFile}"
+CODEX_COMMAND_TEMPLATE=codex exec -
+CLAUDE_COMMAND_TEMPLATE=claude -p
 GEMINI_COMMAND_TEMPLATE=gemini -p "{promptFile}"
 ```
 
@@ -107,7 +157,7 @@ OPENAI_COMPATIBLE_BASE_URL=https://seu-endpoint-openai-compatible/v1
 OPENAI_COMPATIBLE_MODEL=...
 ```
 
-## Perfis de custo
+## 💸 Perfis de custo
 
 - `lite`: menor consumo de tokens, contexto condensado, tarefas menores e mais objetivas
 - `balanced`: padrao recomendado, bom equilibrio entre detalhe e custo
@@ -119,7 +169,7 @@ Exemplo:
 software-factory run --name onboarding-dashboard --brief "Criar onboarding" --effort lite
 ```
 
-## Uso rapido
+## ▶️ Uso rapido
 
 ### 1. Inicializar o projeto alvo
 
@@ -169,11 +219,19 @@ software-factory run --mode autonomy --brief "Consolidar proximo ciclo apos a ro
 software-factory generate-image --prompt "Premium SaaS dashboard hero, clean, modern, pencil-approved layout" --output .software-factory/assets/hero.png
 ```
 
-### 6. Validar ambiente
+### 6. Validar ambiente e binario do provider
 
 ```bash
 software-factory doctor
 ```
+
+O `doctor` agora informa:
+
+- provider selecionado
+- tipo do provider (`api` ou `cli`)
+- template do comando
+- binario detectado no PATH
+- fallbacks disponiveis para providers CLI como `opencode`
 
 ### 7. Publicar o proprio pacote em repo privado no GitHub
 
@@ -181,7 +239,7 @@ software-factory doctor
 software-factory publish --repo software-factory-cli --workspace .
 ```
 
-## Estrutura criada no projeto alvo
+## 🗂️ Estrutura criada no projeto alvo
 
 ```text
 .software-factory/
@@ -216,7 +274,7 @@ software-factory publish --repo software-factory-cli --workspace .
           response.md
 ```
 
-## Publicacao privada com boa descricao
+## 📝 Publicacao privada com boa descricao
 
 Antes de publicar:
 
@@ -229,7 +287,7 @@ Antes de publicar:
 4. publique em repo privado com `software-factory publish`
 5. para GitHub Packages, configure `.npmrc` com token que tenha `write:packages`
 
-## Fluxo recomendado de uso
+## 🧭 Fluxo recomendado de uso
 
 1. `software-factory init --target .`
 2. `software-factory doctor --provider opencode`
@@ -241,6 +299,6 @@ Antes de publicar:
 8. `software-factory run --mode autonomy --name <feature> --brief "Consolidar proximo ciclo"`
 9. `software-factory publish --repo software-factory-cli --workspace .`
 
-## Estado atual
+## ✅ Estado atual
 
-Esta versao ja compila, testa, gera runs, cria workflows, task files e rounds de review, e consegue ser publicada em um repositório privado. `openai` sai pronto; `openai-compatible` depende de endpoint compatível; `opencode`, `codex`, `claude` e `gemini` usam templates de comando ajustáveis no `.env`.
+Esta versao ja compila, testa, gera runs, cria workflows, task files e rounds de review, e consegue ser publicada em um repositório privado. `openai` sai pronto; `openai-compatible` depende de endpoint compatível; `opencode`, `codex`, `claude` e `gemini` usam templates de comando ajustáveis no `.env`. Para providers CLI, o `doctor` agora mostra binario detectado e fallback disponivel.

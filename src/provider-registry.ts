@@ -48,8 +48,8 @@ export const PROVIDER_REGISTRY: Record<ProviderName, ProviderProfile> = {
 export const PROVIDER_COMMAND_TEMPLATES: Partial<Record<ProviderName, string>> = {
   opencode:
     'opencode run "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains." --dir "{workspace}" --file "{promptFile}"',
-  codex: 'codex exec < "{promptFile}"',
-  claude: 'claude -f "{promptFile}"',
+  codex: 'codex exec -',
+  claude: 'claude -p',
   gemini: 'gemini -p "{promptFile}"',
 };
 
