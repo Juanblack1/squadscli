@@ -8,6 +8,7 @@ import { runDoctorCommand } from "./commands/doctor.js";
 import { runGenerateImageCommand } from "./commands/generate-image.js";
 import { runInitCommand } from "./commands/init.js";
 import { runPublishCommand } from "./commands/publish.js";
+import { runProvidersCommand } from "./commands/providers.js";
 import { runSoftwareFactoryCommand } from "./commands/run.js";
 import { resolveEffort, resolveProvider } from "./config.js";
 import { listProviderNames } from "./provider-registry.js";
@@ -22,9 +23,10 @@ Commands:
   software-factory create-prd --brief "..." [--name workflow]
   software-factory create-techspec --brief "..." [--name workflow]
   software-factory create-tasks --brief "..." [--name workflow]
+  software-factory providers [--workspace path]
   software-factory generate-image --prompt "..." --output path [--aspect-ratio 16:9]
   software-factory doctor [--workspace path] [--provider ${listProviderNames().join("|")}]
-  software-factory publish [--owner login] [--repo nome-do-repo] [--github-packages]
+  software-factory publish [--owner login] [--repo nome-do-repo] [--github-packages] [--github-packages-token-env VAR]
 `);
 }
 
@@ -159,6 +161,20 @@ async function main() {
     return;
   }
 
+  if (command === "providers") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    const result = await runProvidersCommand(path.resolve(values.workspace || process.cwd()));
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
   if (command === "publish") {
     const { values } = parseArgs({
       args: rest,
@@ -167,6 +183,7 @@ async function main() {
                 repo: { type: "string" },
                 workspace: { type: "string" },
                 "github-packages": { type: "boolean" },
+                "github-packages-token-env": { type: "string" },
             },
       allowPositionals: false,
     });
@@ -178,6 +195,7 @@ async function main() {
       description:
         "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first, imagens via Gemini e rounds de review rastreaveis.",
       githubPackages: Boolean(values["github-packages"]),
+      githubPackagesTokenEnv: values["github-packages-token-env"],
     });
 
     console.log(JSON.stringify(result, null, 2));

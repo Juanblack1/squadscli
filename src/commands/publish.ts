@@ -52,6 +52,7 @@ export async function runPublishCommand(options: {
   repo: string;
   description: string;
   githubPackages?: boolean;
+  githubPackagesTokenEnv?: string;
 }) {
   const projectDir = path.resolve(options.projectDir);
   const owner = options.owner || (await runCommand("gh", ["api", "user", "--jq", ".login"], projectDir));
@@ -105,13 +106,25 @@ export async function runPublishCommand(options: {
 
   if (options.githubPackages) {
     try {
-      const token = (await runCommand("gh", ["auth", "token"], projectDir)).trim();
+      const tokenEnvName = options.githubPackagesTokenEnv || "GITHUB_PACKAGES_TOKEN";
+      const tokenFromEnv = process.env[tokenEnvName]?.trim();
+      const token = tokenFromEnv || (await runCommand("gh", ["auth", "token"], projectDir)).trim();
+
+      if (!token) {
+        throw new Error(
+          `Nenhum token disponivel para GitHub Packages. Defina ${tokenEnvName} com escopo write:packages ou autentique o gh com token equivalente.`,
+        );
+      }
+
       await runCommand("npm", ["publish", "--registry", "https://npm.pkg.github.com"], projectDirWithEnv(projectDir, {
         NODE_AUTH_TOKEN: token,
       }, true));
       packagePublished = true;
     } catch (error) {
-      packagePublishError = error instanceof Error ? error.message : String(error);
+      const message = error instanceof Error ? error.message : String(error);
+      packagePublishError = message.includes("403")
+        ? `${message}\nDica: use um token dedicado em GITHUB_PACKAGES_TOKEN com escopo write:packages e, se necessario, repo.`
+        : message;
     }
   }
 

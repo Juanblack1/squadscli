@@ -225,6 +225,12 @@ software-factory generate-image --prompt "Premium SaaS dashboard hero, clean, mo
 software-factory doctor
 ```
 
+### 6.1. Listar todos os providers e sua saude
+
+```bash
+software-factory providers
+```
+
 O `doctor` agora informa:
 
 - provider selecionado
@@ -232,6 +238,14 @@ O `doctor` agora informa:
 - template do comando
 - binario detectado no PATH
 - fallbacks disponiveis para providers CLI como `opencode`
+
+O comando `providers` mostra a matriz completa de providers com:
+
+- disponibilidade real no PATH
+- templates configurados
+- estrategia de economia de tokens
+- readiness por provider
+- cadeia de fallback quando aplicavel
 
 ### 7. Publicar o proprio pacote em repo privado no GitHub
 
@@ -286,6 +300,20 @@ Antes de publicar:
 3. rode `npm run check`
 4. publique em repo privado com `software-factory publish`
 5. para GitHub Packages, configure `.npmrc` com token que tenha `write:packages`
+
+Exemplo de publicacao com token dedicado:
+
+```bash
+set GITHUB_PACKAGES_TOKEN=seu_token
+software-factory publish --repo software-factory-cli --workspace . --github-packages
+```
+
+Ou usando outro nome de variavel:
+
+```bash
+set MEU_TOKEN_PACKAGES=seu_token
+software-factory publish --repo software-factory-cli --workspace . --github-packages --github-packages-token-env MEU_TOKEN_PACKAGES
+```
 
 ## 🧭 Fluxo recomendado de uso
 
