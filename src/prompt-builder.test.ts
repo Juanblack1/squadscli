@@ -2,6 +2,22 @@ import { describe, expect, it } from "vitest";
 
 import { DEFAULT_CONFIG } from "./default-config.js";
 import { buildPrompt } from "./prompt-builder.js";
+import { getStageSquadPacket } from "./squad-loader.js";
+import type { WorkflowArtifactSnapshot } from "./types.js";
+
+const workflowSnapshot: WorkflowArtifactSnapshot = {
+  workflowName: "test-workflow",
+  brief: "# Brief\n\nCriar dashboard de onboarding.",
+  prd: "# PRD\n\nFluxo atual do produto.",
+  techspec: "# Tech Spec\n\nDetalhes tecnicos.",
+  tasks: "# Tasks\n\n### T01 - Implementar onboarding",
+  summary: "# Summary\n\nResumo da rodada.",
+  sharedMemory: "# Memory\n\nDecisao duravel A.",
+  taskMemory: "# Task Memory\n\nProximo passo.",
+  latestReviewMeta: "# Review Round Meta\n\n- Recommendation: liberar",
+  latestReviewSummary: "# Review\n\nTudo certo.",
+  taskFiles: [{ fileName: "task_01.md", title: "T01 - Implementar onboarding" }],
+};
 
 describe("buildPrompt", () => {
   it("enforces Pencil and Gemini rules in full-run mode", () => {
@@ -12,6 +28,8 @@ describe("buildPrompt", () => {
       "full-run",
       "balanced",
       "C:/repo",
+      getStageSquadPacket("full-run"),
+      workflowSnapshot,
     );
 
     expect(prompt.system).toContain("Pencil-first UX gate");
@@ -27,6 +45,8 @@ describe("buildPrompt", () => {
       "review",
       "balanced",
       "C:/repo",
+      getStageSquadPacket("review"),
+      workflowSnapshot,
     );
 
     expect(prompt.system).toContain("Stage: review.");
@@ -34,10 +54,20 @@ describe("buildPrompt", () => {
   });
 
   it("embeds exact PRD and task headings for full-run mode", () => {
-    const prompt = buildPrompt(DEFAULT_CONFIG, "Criar feature", "full-run", "full-run", "lite", "C:/repo");
+    const prompt = buildPrompt(
+      DEFAULT_CONFIG,
+      "Criar feature",
+      "full-run",
+      "full-run",
+      "lite",
+      "C:/repo",
+      getStageSquadPacket("full-run"),
+      workflowSnapshot,
+    );
 
     expect(prompt.system).toContain("Stage: full-run.");
     expect(prompt.user).toContain("Run mode: full-run");
     expect(prompt.user).toContain("Effort level: lite");
+    expect(prompt.user).toContain("Loaded workflow artifacts:");
   });
 });

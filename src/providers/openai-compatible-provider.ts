@@ -5,7 +5,7 @@ import type { PromptBundle, ProviderAdapter, ProviderResult, RunRequest } from "
 export class OpenAICompatibleProvider implements ProviderAdapter {
   name = "openai-compatible" as const;
 
-  async invoke(prompt: PromptBundle, _request: RunRequest): Promise<ProviderResult> {
+  async invoke(prompt: PromptBundle, request: RunRequest): Promise<ProviderResult> {
     const apiKey = process.env.OPENAI_COMPATIBLE_API_KEY;
     const baseURL = process.env.OPENAI_COMPATIBLE_BASE_URL;
 
@@ -19,7 +19,7 @@ export class OpenAICompatibleProvider implements ProviderAdapter {
 
     const client = new OpenAI({ apiKey, baseURL });
     const response = await client.responses.create({
-      model: process.env.OPENAI_COMPATIBLE_MODEL || "gpt-4.1",
+      model: request.model || process.env.OPENAI_COMPATIBLE_MODEL || "gpt-4.1",
       instructions: prompt.system,
       input: prompt.user,
     });

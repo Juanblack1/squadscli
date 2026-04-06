@@ -1,17 +1,19 @@
 {
   "name": "@juanblack1/software-factory-cli",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first e imagens via Gemini.",
   "type": "module",
   "bin": {
-    "software-factory": "dist/index.js"
+    "software-factory": "dist/index.js",
+    "cli-anything-software-factory": "dist/index.js"
   },
   "main": "dist/index.js",
   "files": [
     "dist",
     "README.md",
     ".env.example",
-    ".npmrc.example"
+    ".npmrc.example",
+    "skills"
   ],
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",

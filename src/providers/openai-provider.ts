@@ -5,7 +5,7 @@ import type { PromptBundle, ProviderAdapter, ProviderResult, RunRequest } from "
 export class OpenAIProvider implements ProviderAdapter {
   name = "openai" as const;
 
-  async invoke(prompt: PromptBundle, _request: RunRequest): Promise<ProviderResult> {
+  async invoke(prompt: PromptBundle, request: RunRequest): Promise<ProviderResult> {
     const apiKey = process.env.OPENAI_API_KEY;
 
     if (!apiKey) {
@@ -18,7 +18,7 @@ export class OpenAIProvider implements ProviderAdapter {
     });
 
     const response = await client.responses.create({
-      model: process.env.OPENAI_MODEL || "gpt-5.4",
+      model: request.model || process.env.OPENAI_MODEL || "gpt-5.4",
       instructions: prompt.system,
       input: prompt.user,
     });

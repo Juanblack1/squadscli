@@ -4,9 +4,12 @@ import path from "node:path";
 import { loadEnvironment, loadSoftwareFactoryConfig } from "../config.js";
 import { DEFAULT_CONFIG } from "../default-config.js";
 import { ensureDir, timestampForRun, writeText } from "../fs-utils.js";
+import { resolveModelForProvider } from "../model-utils.js";
 import { createProvider } from "../provider-factory.js";
 import { buildPrompt } from "../prompt-builder.js";
+import { getStageSquadPacket, loadSoftwareFactoryContext } from "../squad-loader.js";
 import type { EffortLevel, ProviderName, RunMode, RunStage } from "../types.js";
+import { loadWorkflowArtifactSnapshot } from "../workflow-context.js";
 import { getWorkflowPaths, initializeWorkflow, resolveWorkflowName, writeWorkflowArtifacts } from "../workflow.js";
 
 export async function runSoftwareFactoryCommand(options: {
@@ -16,16 +19,19 @@ export async function runSoftwareFactoryCommand(options: {
   mode: RunMode;
   stage?: RunStage;
   effort?: EffortLevel;
+  model?: string;
   provider: ProviderName;
   dryRun: boolean;
 }) {
   await loadEnvironment(options.workspaceDir);
 
   const config = await loadSoftwareFactoryConfig(options.workspaceDir);
+  const squad = loadSoftwareFactoryContext();
   const stateDir = path.join(options.workspaceDir, config.outputDir);
   const runId = timestampForRun();
   const stage = options.stage || options.mode;
   const effort = options.effort || config.defaultEffort;
+  const model = resolveModelForProvider(options.provider, options.model);
   const workflowName = resolveWorkflowName(options.brief, options.name);
   const workflowPaths = getWorkflowPaths(stateDir, workflowName, runId);
   const runDir = path.join(stateDir, "runs", runId);
@@ -35,7 +41,19 @@ export async function runSoftwareFactoryCommand(options: {
   await ensureDir(currentDir);
   await initializeWorkflow(workflowPaths, options.brief);
 
-  const prompt = buildPrompt(config, options.brief, options.mode, stage, effort, options.workspaceDir, workflowName);
+  const squadPacket = getStageSquadPacket(stage);
+  const workflowSnapshot = await loadWorkflowArtifactSnapshot(workflowPaths);
+  const prompt = buildPrompt(
+    config,
+    options.brief,
+    options.mode,
+    stage,
+    effort,
+    options.workspaceDir,
+    squadPacket,
+    workflowSnapshot,
+    workflowName,
+  );
   const promptText = `# System\n\n${prompt.system}\n\n# User\n\n${prompt.user}\n`;
 
   await writeText(path.join(runDir, "brief.md"), `${options.brief.trim()}\n`);
@@ -46,10 +64,12 @@ export async function runSoftwareFactoryCommand(options: {
     `${JSON.stringify(
       {
         runId,
+        squad: squad.code,
         workflowName,
         mode: options.mode,
         stage,
         effort,
+        model: model || null,
         provider: options.provider,
         workspaceDir: options.workspaceDir,
       },
@@ -64,6 +84,7 @@ export async function runSoftwareFactoryCommand(options: {
       workflowName,
       stage,
       effort,
+      model: model || null,
       runDir,
       promptPath: path.join(runDir, "prompt.md"),
       responsePath: null,
@@ -77,6 +98,7 @@ export async function runSoftwareFactoryCommand(options: {
     mode: options.mode,
     stage,
     effort,
+    model,
     workspaceDir: options.workspaceDir,
     stateDir,
     provider: options.provider,

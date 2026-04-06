@@ -2,6 +2,7 @@ import path from "node:path";
 
 import { loadEnvironment, loadSoftwareFactoryConfig, resolveProvider } from "../config.js";
 import { fileExists } from "../fs-utils.js";
+import { resolveModelForProvider } from "../model-utils.js";
 import { PROVIDER_COMMAND_TEMPLATES, PROVIDER_REGISTRY } from "../provider-registry.js";
 import { buildFallbackOrder, detectBinary } from "../provider-utils.js";
 
@@ -38,6 +39,7 @@ export async function runDoctorCommand(workspaceDir: string, preferredProvider?:
     hasGeminiKey: Boolean(process.env.GEMINI_API_KEY),
     commandTemplate,
     commandBinary,
+    activeModel: resolveModelForProvider(provider),
     requiredEnvKeys: profile.envKeys,
     providerReady:
       profile.kind === "api"

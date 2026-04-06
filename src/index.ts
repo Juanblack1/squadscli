@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runGenerateImageCommand } from "./commands/generate-image.js";
 import { runInitCommand } from "./commands/init.js";
+import { runModelsCommand } from "./commands/models.js";
 import { runPublishCommand } from "./commands/publish.js";
 import { runProvidersCommand } from "./commands/providers.js";
 import { runSoftwareFactoryCommand } from "./commands/run.js";
@@ -24,6 +25,7 @@ Commands:
   software-factory create-techspec --brief "..." [--name workflow]
   software-factory create-tasks --brief "..." [--name workflow]
   software-factory providers [--workspace path]
+  software-factory models [--provider ${listProviderNames().join("|")}] [--workspace path]
   software-factory generate-image --prompt "..." --output path [--aspect-ratio 16:9]
   software-factory doctor [--workspace path] [--provider ${listProviderNames().join("|")}]
   software-factory publish [--owner login] [--repo nome-do-repo] [--github-packages] [--github-packages-token-env VAR]
@@ -76,6 +78,7 @@ async function main() {
         mode: { type: "string" },
         provider: { type: "string" },
         effort: { type: "string" },
+        model: { type: "string" },
         workspace: { type: "string" },
         "dry-run": { type: "boolean" },
       },
@@ -105,6 +108,7 @@ async function main() {
       mode,
       stage,
       effort,
+      model: values.model,
       provider,
       dryRun: Boolean(values["dry-run"]),
     });
@@ -171,6 +175,22 @@ async function main() {
     });
 
     const result = await runProvidersCommand(path.resolve(values.workspace || process.cwd()));
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "models") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+        provider: { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    const provider = values.provider ? resolveProvider(values.provider) : undefined;
+    const result = await runModelsCommand(path.resolve(values.workspace || process.cwd()), provider);
     console.log(JSON.stringify(result, null, 2));
     return;
   }

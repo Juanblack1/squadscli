@@ -1,6 +1,7 @@
 import path from "node:path";
 
 import { loadEnvironment, loadSoftwareFactoryConfig } from "../config.js";
+import { resolveModelForProvider } from "../model-utils.js";
 import { PROVIDER_COMMAND_TEMPLATES, PROVIDER_REGISTRY, listProviderNames } from "../provider-registry.js";
 import { buildFallbackOrder, detectBinary } from "../provider-utils.js";
 
@@ -37,6 +38,7 @@ export async function runProvidersCommand(workspaceDir: string) {
         description: profile.description,
         tokenStrategy: profile.tokenStrategy,
         envKeys: profile.envKeys,
+        activeModel: resolveModelForProvider(provider),
         commandTemplate,
         commandBinary,
         ready: profile.kind === "api" ? isApiProviderReady(provider) : Boolean(commandBinary?.available),

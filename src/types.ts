@@ -34,6 +34,7 @@ export interface RunRequest {
   mode: RunMode;
   stage: RunStage;
   effort: EffortLevel;
+  model?: string;
   workspaceDir: string;
   stateDir: string;
   provider: ProviderName;
@@ -61,6 +62,8 @@ export interface ProviderProfile {
   description: string;
   tokenStrategy: string;
   envKeys: string[];
+  modelEnvKey?: string;
+  suggestedModels?: string[];
 }
 
 export interface WorkflowPaths {
@@ -69,10 +72,28 @@ export interface WorkflowPaths {
   memoryDir: string;
   reviewsDir: string;
   currentRunDir: string;
+  briefPath: string;
   prdPath: string;
   techspecPath: string;
   tasksPath: string;
   summaryPath: string;
   sharedMemoryPath: string;
   taskMemoryPath: string;
+}
+
+export interface WorkflowArtifactSnapshot {
+  workflowName: string;
+  brief: string | null;
+  prd: string | null;
+  techspec: string | null;
+  tasks: string | null;
+  summary: string | null;
+  sharedMemory: string | null;
+  taskMemory: string | null;
+  latestReviewMeta: string | null;
+  latestReviewSummary: string | null;
+  taskFiles: Array<{
+    fileName: string;
+    title: string;
+  }>;
 }

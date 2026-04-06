@@ -45,12 +45,21 @@ function shouldFallback(errorMessage: string) {
 
 async function runTemplateProvider(name: ProviderName, template: string, request: RunRequest): Promise<ProviderResult> {
   const promptFile = path.join(request.stateDir, "runs", "current", "prompt.md");
+  const selectedModel = request.model || process.env[`${name.toUpperCase().replaceAll("-", "_")}_MODEL`] || "";
 
   if (name === "codex") {
     const promptText = await fs.readFile(promptFile, "utf8");
 
     return await new Promise<ProviderResult>((resolve, reject) => {
-      const child = spawn("codex", ["exec", "-"], {
+      const args = ["exec"];
+
+      if (selectedModel) {
+        args.push("--model", selectedModel);
+      }
+
+      args.push("-");
+
+      const child = spawn("codex", args, {
         cwd: request.workspaceDir,
         env: buildProviderEnv(name),
         shell: false,
@@ -107,7 +116,13 @@ async function runTemplateProvider(name: ProviderName, template: string, request
     const promptText = await fs.readFile(promptFile, "utf8");
 
     return await new Promise<ProviderResult>((resolve, reject) => {
-      const child = spawn("claude", ["-p"], {
+      const args = ["-p"];
+
+      if (selectedModel) {
+        args.push("--model", selectedModel);
+      }
+
+      const child = spawn("claude", args, {
         cwd: request.workspaceDir,
         env: buildProviderEnv(name),
         shell: false,
@@ -165,6 +180,7 @@ async function runTemplateProvider(name: ProviderName, template: string, request
     workspace: request.workspaceDir,
     stage: request.stage,
     workflow: request.name,
+    model: selectedModel,
   });
 
   return await new Promise<ProviderResult>((resolve, reject) => {

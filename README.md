@@ -6,6 +6,7 @@
 
 - executa o `software-factory` como fluxo CLI-first
 - suporta providers dedicados `openai`, `openai-compatible`, `opencode`, `codex`, `claude` e `gemini`
+- suporta escolha explicita de `provider` e `model` por comando
 - cria estrutura `.software-factory/` no projeto alvo
 - cria workflows por feature com `_brief.md`, `_prd.md`, `_techspec.md`, `_tasks.md`, memoria e rounds de review
 - guarda runs, prompts, respostas e metadados por execucao
@@ -89,6 +90,12 @@ Quando este pacote estiver em um repositorio proprio privado, voce pode instalar
 npm install -g git+ssh://git@github.com/Juanblack1/software-factory-cli.git
 ```
 
+Alias adicional compativel com o ecossistema CLI-Anything:
+
+```bash
+cli-anything-software-factory --help
+```
+
 Se preferir GitHub Packages, publique o pacote e instale via `.npmrc` autenticado.
 
 ## 📦 Instalação via GitHub Packages
@@ -119,6 +126,7 @@ Edite `.env`:
 ```env
 SF_PROVIDER=openai
 SF_EFFORT=balanced
+SF_MODEL=
 OPENAI_API_KEY=...
 OPENAI_MODEL=gpt-5.4
 
@@ -130,9 +138,13 @@ GEMINI_API_KEY=...
 GEMINI_IMAGE_MODEL=imagen-4.0-generate-001
 
 OPENCODE_COMMAND_TEMPLATE=opencode run "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains." --dir "{workspace}" --file "{promptFile}"
+OPENCODE_MODEL=
 CODEX_COMMAND_TEMPLATE=codex exec -
+CODEX_MODEL=
 CLAUDE_COMMAND_TEMPLATE=claude -p
+CLAUDE_MODEL=
 GEMINI_COMMAND_TEMPLATE=gemini -p "{promptFile}"
+GEMINI_MODEL=
 ```
 
 Para usar OpenCode como provider principal:
@@ -167,6 +179,36 @@ Exemplo:
 
 ```bash
 software-factory run --name onboarding-dashboard --brief "Criar onboarding" --effort lite
+```
+
+## 🧬 Escolha de provider e modelo
+
+Listar providers detectados:
+
+```bash
+software-factory providers
+```
+
+Listar modelos ativos e sugeridos:
+
+```bash
+software-factory models
+software-factory models --provider codex
+```
+
+Executar escolhendo provider e modelo explicitamente:
+
+```bash
+software-factory create-prd --name onboarding-dashboard --brief "Criar onboarding" --provider openai --model gpt-5.4
+software-factory create-techspec --name onboarding-dashboard --brief "Detalhar arquitetura" --provider codex --model gpt-5.4
+software-factory run --name onboarding-dashboard --brief "Executar fluxo completo" --provider claude --model sonnet
+```
+
+O alias compatível com CLI-Anything funciona do mesmo jeito:
+
+```bash
+cli-anything-software-factory providers
+cli-anything-software-factory models --provider openai
 ```
 
 ## ▶️ Uso rapido
@@ -231,6 +273,12 @@ software-factory doctor
 software-factory providers
 ```
 
+Listar modelos por provider:
+
+```bash
+software-factory models
+```
+
 O `doctor` agora informa:
 
 - provider selecionado
@@ -246,6 +294,13 @@ O comando `providers` mostra a matriz completa de providers com:
 - estrategia de economia de tokens
 - readiness por provider
 - cadeia de fallback quando aplicavel
+
+O comando `models` mostra:
+
+- modelo ativo por provider
+- variavel de ambiente usada para esse modelo
+- modelos sugeridos por provider
+- como sobrescrever por `--model`
 
 ### 7. Publicar o proprio pacote em repo privado no GitHub
 
