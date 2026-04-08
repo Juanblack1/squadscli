@@ -1,0 +1,364 @@
+import { Buffer } from "node:buffer";
+import path from "node:path";
+
+import { resolveEffort, resolveProvider } from "../../../src/config.js";
+import { runModelsCommand } from "../../../src/commands/models.js";
+import { runProvidersCommand } from "../../../src/commands/providers.js";
+import { runSoftwareFactoryCommand } from "../../../src/commands/run.js";
+import { runVideoPackageCommand } from "../../../src/commands/video-package.js";
+import { runVideoPlanCommand } from "../../../src/commands/video-plan.js";
+import { retrieveStageContext } from "../../../packages/retrieval/src/index.js";
+import { getStageSquadPacket } from "../../../packages/squad-runtime/src/index.js";
+import { loadWorkflowArtifactSnapshot } from "../../../src/workflow-context.js";
+import { getWorkflowPaths } from "../../../src/workflow.js";
+import { SUPPORTED_VIDEO_EDITORS } from "../../../src/video-utils.js";
+
+type Json = null | boolean | number | string | Json[] | { [key: string]: Json };
+type JsonObject = { [key: string]: Json };
+
+interface JsonRpcRequest {
+  jsonrpc: "2.0";
+  id?: string | number;
+  method: string;
+  params?: JsonObject;
+}
+
+interface ToolDefinition {
+  name: string;
+  description: string;
+  inputSchema: JsonObject;
+}
+
+const TOOLS: ToolDefinition[] = [
+  {
+    name: "software_factory.providers",
+    description: "Lista providers, disponibilidade, fallback e readiness do software-factory.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceDir: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.models",
+    description: "Lista modelos ativos e sugeridos por provider.",
+    inputSchema: {
+      type: "object",
+      properties: {
+        workspaceDir: { type: "string" },
+        provider: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.run_dry",
+    description: "Executa um dry-run do workflow principal do software-factory.",
+    inputSchema: {
+      type: "object",
+      required: ["brief"],
+      properties: {
+        name: { type: "string" },
+        brief: { type: "string" },
+        workspaceDir: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+        mode: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.stage_dry",
+    description: "Executa um dry-run de um stage especifico do software-factory.",
+    inputSchema: {
+      type: "object",
+      required: ["brief", "stage"],
+      properties: {
+        name: { type: "string" },
+        brief: { type: "string" },
+        stage: { type: "string" },
+        workspaceDir: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.retrieval_dry",
+    description: "Mostra o contexto recuperado para um stage antes de executar o provider.",
+    inputSchema: {
+      type: "object",
+      required: ["brief", "name", "stage"],
+      properties: {
+        name: { type: "string" },
+        brief: { type: "string" },
+        stage: { type: "string" },
+        workspaceDir: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.video_plan_dry",
+    description: "Gera um dry-run do planejamento universal de edicao de video.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "input", "goal"],
+      properties: {
+        name: { type: "string" },
+        input: { type: "string" },
+        goal: { type: "string" },
+        editor: { type: "string" },
+        workspaceDir: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.video_package",
+    description: "Gera pacote de importacao para um editor de video especifico.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "input"],
+      properties: {
+        name: { type: "string" },
+        input: { type: "string" },
+        editor: { type: "string" },
+        workspaceDir: { type: "string" },
+      },
+    },
+  },
+];
+
+function writeMessage(payload: JsonObject) {
+  const body = JSON.stringify(payload);
+  const header = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`;
+  process.stdout.write(header + body);
+}
+
+function success(id: string | number | undefined, result: JsonObject) {
+  if (id === undefined) return;
+  writeMessage({ jsonrpc: "2.0", id, result });
+}
+
+function failure(id: string | number | undefined, message: string) {
+  if (id === undefined) return;
+  writeMessage({
+    jsonrpc: "2.0",
+    id,
+    error: {
+      code: -32000,
+      message,
+    },
+  });
+}
+
+function resolveWorkspaceDir(value: unknown) {
+  return path.resolve(typeof value === "string" && value.trim() ? value : process.cwd());
+}
+
+function toStage(value: unknown) {
+  const stage = String(value || "full-run");
+  if (!["full-run", "prd", "techspec", "tasks", "review", "autonomy"].includes(stage)) {
+    throw new Error(`Stage invalido: ${stage}`);
+  }
+  return stage as "full-run" | "prd" | "techspec" | "tasks" | "review" | "autonomy";
+}
+
+function toEditor(value: unknown) {
+  const editor = typeof value === "string" && value.trim() ? value : "generic";
+  if (!SUPPORTED_VIDEO_EDITORS.includes(editor as (typeof SUPPORTED_VIDEO_EDITORS)[number])) {
+    throw new Error(`Editor invalido: ${editor}`);
+  }
+  return editor as (typeof SUPPORTED_VIDEO_EDITORS)[number];
+}
+
+function stageToMode(stage: ReturnType<typeof toStage>) {
+  if (stage === "review") return "review" as const;
+  if (stage === "autonomy") return "autonomy" as const;
+  return "full-run" as const;
+}
+
+async function callTool(name: string, args: JsonObject) {
+  if (name === "software_factory.providers") {
+    return await runProvidersCommand(resolveWorkspaceDir(args.workspaceDir));
+  }
+
+  if (name === "software_factory.models") {
+    const provider = typeof args.provider === "string" ? resolveProvider(args.provider) : undefined;
+    return await runModelsCommand(resolveWorkspaceDir(args.workspaceDir), provider);
+  }
+
+  if (name === "software_factory.run_dry") {
+    if (typeof args.brief !== "string" || !args.brief.trim()) throw new Error("Campo 'brief' obrigatorio.");
+    return await runSoftwareFactoryCommand({
+      name: typeof args.name === "string" ? args.name : undefined,
+      brief: args.brief,
+      workspaceDir: resolveWorkspaceDir(args.workspaceDir),
+      mode: (typeof args.mode === "string" ? args.mode : "full-run") as "full-run" | "review" | "autonomy",
+      effort: resolveEffort(typeof args.effort === "string" ? args.effort : undefined),
+      model: typeof args.model === "string" ? args.model : undefined,
+      provider: resolveProvider(typeof args.provider === "string" ? args.provider : undefined),
+      dryRun: true,
+    });
+  }
+
+  if (name === "software_factory.stage_dry") {
+    if (typeof args.brief !== "string" || !args.brief.trim()) throw new Error("Campo 'brief' obrigatorio.");
+    const stage = toStage(args.stage);
+    return await runSoftwareFactoryCommand({
+      name: typeof args.name === "string" ? args.name : undefined,
+      brief: args.brief,
+      workspaceDir: resolveWorkspaceDir(args.workspaceDir),
+      mode: stageToMode(stage),
+      stage,
+      effort: resolveEffort(typeof args.effort === "string" ? args.effort : undefined),
+      model: typeof args.model === "string" ? args.model : undefined,
+      provider: resolveProvider(typeof args.provider === "string" ? args.provider : undefined),
+      dryRun: true,
+    });
+  }
+
+  if (name === "software_factory.retrieval_dry") {
+    if (typeof args.brief !== "string" || !args.brief.trim()) throw new Error("Campo 'brief' obrigatorio.");
+    if (typeof args.name !== "string" || !args.name.trim()) throw new Error("Campo 'name' obrigatorio.");
+    const workspaceDir = resolveWorkspaceDir(args.workspaceDir);
+    const stage = toStage(args.stage);
+    const paths = getWorkflowPaths(path.join(workspaceDir, ".software-factory"), args.name, "mcp-view");
+    const workflowSnapshot = await loadWorkflowArtifactSnapshot(paths);
+    const squadPacket = getStageSquadPacket(stage);
+    const chunks = retrieveStageContext({
+      stage,
+      brief: args.brief,
+      workflowSnapshot,
+      squadPacket,
+    });
+
+    return {
+      workflowName: args.name,
+      stage,
+      chunkCount: chunks.length,
+      chunks,
+    };
+  }
+
+  if (name === "software_factory.video_plan_dry") {
+    if (typeof args.name !== "string" || typeof args.input !== "string" || typeof args.goal !== "string") {
+      throw new Error("Campos 'name', 'input' e 'goal' sao obrigatorios.");
+    }
+    return await runVideoPlanCommand({
+      workspaceDir: resolveWorkspaceDir(args.workspaceDir),
+      workflowName: args.name,
+      inputPath: args.input,
+      goal: args.goal,
+      editor: toEditor(args.editor),
+      provider: resolveProvider(typeof args.provider === "string" ? args.provider : undefined),
+      effort: resolveEffort(typeof args.effort === "string" ? args.effort : undefined),
+      model: typeof args.model === "string" ? args.model : undefined,
+      dryRun: true,
+    });
+  }
+
+  if (name === "software_factory.video_package") {
+    if (typeof args.name !== "string" || typeof args.input !== "string") {
+      throw new Error("Campos 'name' e 'input' sao obrigatorios.");
+    }
+    return await runVideoPackageCommand({
+      workspaceDir: resolveWorkspaceDir(args.workspaceDir),
+      workflowName: args.name,
+      inputPath: args.input,
+      editor: toEditor(args.editor),
+    });
+  }
+
+  throw new Error(`Tool nao encontrada: ${name}`);
+}
+
+async function handleRequest(request: JsonRpcRequest) {
+  if (request.method === "initialize") {
+    return {
+      protocolVersion: "2024-11-05",
+      capabilities: {
+        tools: {
+          listChanged: false,
+        },
+      },
+      serverInfo: {
+        name: "software-factory-mcp",
+        version: "0.1.0",
+      },
+    };
+  }
+
+  if (request.method === "ping") {
+    return {};
+  }
+
+  if (request.method === "tools/list") {
+    return { tools: TOOLS };
+  }
+
+  if (request.method === "tools/call") {
+    const toolName = typeof request.params?.name === "string" ? request.params.name : "";
+    const args = (request.params?.arguments as JsonObject | undefined) || {};
+    const result = await callTool(toolName, args);
+    return {
+      content: [
+        {
+          type: "text",
+          text: JSON.stringify(result, null, 2),
+        },
+      ],
+    };
+  }
+
+  if (request.method === "notifications/initialized") {
+    return undefined;
+  }
+
+  throw new Error(`Metodo nao suportado: ${request.method}`);
+}
+
+let buffer = Buffer.alloc(0);
+
+process.stdin.on("data", async (chunk: Buffer) => {
+  buffer = Buffer.concat([buffer, chunk]);
+
+  while (true) {
+    const headerEnd = buffer.indexOf("\r\n\r\n");
+    if (headerEnd === -1) break;
+
+    const header = buffer.slice(0, headerEnd).toString("utf8");
+    const lengthMatch = header.match(/Content-Length:\s*(\d+)/i);
+    if (!lengthMatch) {
+      buffer = Buffer.alloc(0);
+      break;
+    }
+
+    const contentLength = Number(lengthMatch[1]);
+    const messageStart = headerEnd + 4;
+    const messageEnd = messageStart + contentLength;
+    if (buffer.length < messageEnd) break;
+
+    const jsonText = buffer.slice(messageStart, messageEnd).toString("utf8");
+    buffer = buffer.slice(messageEnd);
+
+    try {
+      const request = JSON.parse(jsonText) as JsonRpcRequest;
+      const result = await handleRequest(request);
+      if (result !== undefined) {
+        success(request.id, result as JsonObject);
+      }
+    } catch (error) {
+      const request = (() => {
+        try { return JSON.parse(jsonText) as JsonRpcRequest; } catch { return undefined; }
+      })();
+      failure(request?.id, error instanceof Error ? error.message : String(error));
+    }
+  }
+});
+
+process.stdin.resume();

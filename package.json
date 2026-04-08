@@ -1,15 +1,17 @@
 {
   "name": "@juanblack1/software-factory-cli",
-  "version": "0.3.0",
-  "description": "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first, imagens via Gemini e planejamento universal de edicao de video.",
+  "version": "0.4.0",
+  "description": "Orquestrador CLI do Software Factory 2.0 com squad runtime, server HTTP, MCP, cockpit web inicial, retrieval seletivo, multiprovider e workflow universal para software e video.",
   "type": "module",
   "bin": {
-    "software-factory": "dist/index.js",
-    "cli-anything-software-factory": "dist/index.js"
+    "software-factory": "dist/src/index.js",
+    "cli-anything-software-factory": "dist/src/index.js"
   },
-  "main": "dist/index.js",
+  "main": "dist/src/index.js",
   "files": [
     "dist",
+    "apps",
+    "docs",
     "README.md",
     ".env.example",
     ".npmrc.example",
@@ -17,9 +19,13 @@
   ],
   "scripts": {
     "build": "node -e \"require('fs').rmSync('dist',{recursive:true,force:true})\" && tsc -p tsconfig.json",
+    "build:server": "node -e \"require('fs').rmSync('apps/server/dist',{recursive:true,force:true})\" && npx tsc -p apps/server/tsconfig.json",
+    "build:mcp": "node -e \"require('fs').rmSync('apps/mcp/dist',{recursive:true,force:true})\" && npx tsc -p apps/mcp/tsconfig.json",
+    "build:all": "npm run build && npm run build:server && npm run build:mcp",
     "dev": "tsx src/index.ts",
+    "prepack": "npm run build:all",
     "test": "vitest run",
-    "check": "npm run build && npm run test"
+    "check": "npm run build:all && npm run test"
   },
   "keywords": [
     "cli",
@@ -31,7 +37,11 @@
     "workflow",
     "prd",
     "techspec",
-    "review"
+    "review",
+    "mcp",
+    "server",
+    "retrieval",
+    "video-editing"
   ],
   "author": "Juanblack1",
   "license": "UNLICENSED",

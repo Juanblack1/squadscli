@@ -1,5 +1,5 @@
 import type { StageSquadPacket } from "./squad-loader.js";
-import type { EffortLevel, PromptBundle, RunMode, RunStage, SoftwareFactoryConfig, WorkflowArtifactSnapshot } from "./types.js";
+import type { EffortLevel, PromptBundle, RetrievalChunk, RunMode, RunStage, SoftwareFactoryConfig, WorkflowArtifactSnapshot } from "./types.js";
 
 function effortTemplate(effort: EffortLevel) {
   if (effort === "lite") {
@@ -75,6 +75,7 @@ export function buildPrompt(
   workspaceDir: string,
   squadPacket: StageSquadPacket,
   workflowSnapshot: WorkflowArtifactSnapshot,
+  retrievedContext: RetrievalChunk[],
   workflowName?: string,
 ): PromptBundle {
   const system = [
@@ -110,6 +111,8 @@ export function buildPrompt(
     renderSquadPacket(squadPacket),
     "Loaded workflow artifacts:",
     renderWorkflowSnapshot(stage, workflowSnapshot),
+    "Retrieved context:",
+    renderRetrievedContext(retrievedContext),
     "Mandatory squad rules:",
     "- UX and design agent must draw screens in Pencil before the site is implemented.",
     "- When images are necessary, use Gemini Imagen as the image generation path.",
@@ -123,6 +126,16 @@ export function buildPrompt(
   ].join("\n\n");
 
   return { system, user };
+}
+
+function renderRetrievedContext(chunks: RetrievalChunk[]) {
+  if (chunks.length === 0) {
+    return "No retrieved context matched this stage strongly enough.";
+  }
+
+  return chunks
+    .map((chunk) => [`### ${chunk.label}`, `Source: ${chunk.source} | Score: ${chunk.score}`, chunk.content].join("\n"))
+    .join("\n\n");
 }
 
 function renderSquadPacket(squadPacket: StageSquadPacket) {

@@ -1,117 +1,164 @@
 # software-factory-cli
 
-🚀 CLI instalavel para rodar o `software-factory` fora deste workspace, com contrato operacional proprio, providers configuraveis, workflows por feature e politicas embutidas do squad.
+🚀 Orquestrador do **Software Factory 2.0** para terminal, API, MCP e cockpit web.
 
-## O que esta CLI faz
+Este projeto transforma o squad `software-factory` em um sistema operacional de entrega com:
 
-- executa o `software-factory` como fluxo CLI-first
-- suporta providers dedicados `openai`, `openai-compatible`, `opencode`, `codex`, `claude` e `gemini`
-- suporta escolha explicita de `provider` e `model` por comando
-- suporta workflow universal de edicao de video para qualquer editor via `video-plan` e `video-package`
-- cria estrutura `.software-factory/` no projeto alvo
-- cria workflows por feature com `_brief.md`, `_prd.md`, `_techspec.md`, `_tasks.md`, memoria e rounds de review
-- guarda runs, prompts, respostas e metadados por execucao
-- obriga a politica `Pencil before frontend`
-- usa Gemini Imagen para geracao de imagens quando necessario
-- endurece prompts antes de enviar ao modelo
-- orienta o modelo a perguntar quando existir ambiguidade bloqueante
-- suporta perfis de custo `lite`, `balanced` e `deep` para gastar menos tokens sem perder rastreabilidade
+- 🧠 runtime real do squad e dos agentes
+- ⚙️ multiprovider e multimodelo
+- 📁 artifacts como fonte da verdade (`PRD`, `Tech Spec`, `Tasks`, `Review`, memória)
+- 🔎 retrieval seletivo para reduzir tokens e melhorar consistência
+- 🛰️ server HTTP para integrações
+- 🤖 MCP para clientes agent-native
+- 🖥️ cockpit web inicial
+- 🎬 workflow universal de vídeo para qualquer editor
 
-## 🧠 Agentes do Squad e especialidades
+## O que ele faz
 
-### Lideranca e produto
+- executa o squad `software-factory` por CLI
+- gera `PRD`, `Tech Spec`, `Tasks` e `Review` por workflow
+- mantém memória incremental por feature
+- escolhe `provider` e `model` explicitamente por comando
+- expõe `providers`, `models`, `doctor` e `retrieval`
+- publica e instala como pacote privado
+- planeja edição de vídeo e gera pacote para vários editores
 
-- `🧭 JuanBlack`: lider de fluxo, gates, aprovacoes e roteamento entre especialistas
-- `📌 Otavio Objetivo`: descoberta, alinhamento do brief e PRD
-- `🧭 Sergio Sprint`: plano executavel, backlog e handoffs claros
-- `✨ Mila Melhorias`: backlog de melhoria continua e memoria enxuta do workflow
+## Superfícies disponíveis
 
-### Pesquisa, contexto e prompt
+### 1. CLI
 
-- `🔎 Explorer Atlas`: pesquisa multimodal de mercado, referencias e contexto externo
-- `💡 Iris Inovacao`: benchmark, elevacao de barra e referencias premium
-- `✍️ Paula Prompt`: prompts reutilizaveis, claros e fortes para cada etapa
+- `software-factory`
+- alias compatível com ambientes agent-native: `cli-anything-software-factory`
 
-### UX, arquitetura e especificacao
+### 2. Server HTTP
 
-- `🧩 Yasmin UX`: jornada, interface, microcopy e gate Pencil-before-frontend
-- `🏗️ Sid Sistematico`: system design, modulos, trade-offs e topologia
-- `🧠 Tadeu Tech`: tech spec, contratos e estrategia de implementacao
+Suba com:
 
-### Engenharia e implementacao
+```bash
+software-factory serve
+```
 
-- `🔌 Mica MCP`: skills, MCPs e integracoes com seguranca e padronizacao
-- `🗄️ Davi Dados`: banco, schema, migracoes e estrategias de acesso a dados
-- `⚙️ Bruno Backend`: dominio, regras, APIs e integracoes
-- `🖥️ Fernanda Frontend`: telas, fluxos e experiencia final
-- `☁️ Ivo Infra`: ambientes, pipelines, observabilidade e base operacional
+Endpoints atuais:
+
+- `GET /health`
+- `GET /providers`
+- `GET /models`
+- `GET /workflows`
+- `GET /workflows/:name`
+- `GET /artifacts/:name`
+- `POST /runs/dry-run`
+- `POST /stages/:stage/dry-run`
+- `POST /stages/:stage/run`
+- `POST /retrieval/dry-run`
+- `POST /video/plan/dry-run`
+- `POST /video/package`
+
+### 3. MCP
+
+Suba com:
+
+```bash
+software-factory mcp
+```
+
+Tools atuais:
+
+- `software_factory.providers`
+- `software_factory.models`
+- `software_factory.run_dry`
+- `software_factory.stage_dry`
+- `software_factory.retrieval_dry`
+- `software_factory.video_plan_dry`
+- `software_factory.video_package`
+
+### 4. Web
+
+Suba o server e depois:
+
+```bash
+software-factory web
+```
+
+Abra:
+
+```text
+http://127.0.0.1:4173
+```
+
+O cockpit inicial mostra:
+
+- health do server
+- providers
+- models
+- workflows
+
+## 🧠 Agentes do squad e especialidades
+
+### Liderança e produto
+
+- `🧭 JuanBlack`: liderança de fluxo, gates, aprovações e roteamento
+- `📌 Otavio Objetivo`: descoberta, clarificação do problema e PRD
+- `🧭 Sergio Sprint`: backlog executável, ordem de entrega e handoffs
+- `✨ Mila Melhorias`: melhoria contínua e memória durável do workflow
+
+### Pesquisa e contexto
+
+- `🔎 Explorer Atlas`: pesquisa multimodal e contexto externo
+- `💡 Iris Inovacao`: benchmark e elevação de barra
+- `✍️ Paula Prompt`: prompts fortes, enxutos e reutilizáveis
+
+### UX, arquitetura e especificação
+
+- `🧩 Yasmin UX`: jornada, interface, microcopy e Pencil-first
+- `🏗️ Sid Sistematico`: system design e topologia do sistema
+- `🧠 Tadeu Tech`: tech spec, contratos e decisões técnicas
+
+### Engenharia e entrega
+
+- `🔌 Mica MCP`: skills, MCPs e integrações
+- `🗄️ Davi Dados`: dados, schema, migrações e acesso
+- `⚙️ Bruno Backend`: APIs, regras e domínio
+- `🖥️ Fernanda Frontend`: fluxos, telas e experiência final
+- `☁️ Ivo Infra`: ambientes, observabilidade e base operacional
 - `🚀 Diego Deploy`: rollout, monitoramento e rollback
-- `🌿 Guto GitHub`: branch, commit, PR, checks e trilha de release
-- `▲ Vera Vercel`: publicacao final na Vercel e smoke de entrega
+- `🌿 Guto GitHub`: branch, commit, PR e trilha de release
+- `▲ Vera Vercel`: publicação final e smoke de entrega
 
-### Qualidade, risco e revisao
+### Qualidade, risco e revisão
 
-- `🔐 Caio Cyber`: auth, dados, superficie de ataque e mitigacoes
-- `🧪 Tito Testes`: testes automatizados, smoke tecnico e E2E
-- `🧐 Aline Avalia`: aderencia a PRD, UX, seguranca e testes antes do QA final
-- `✅ Quirino Qualidade`: criterios de aceite, regressao e prontidao para gate
-- `🗣️ Livia Linguistica`: portugues do Brasil aplicado a produto, microcopy e mensagens de erro
-- `⚡ Pericles Performance`: gargalos, otimizacoes e prevencao de regressao de desempenho
-- `🧪 Clara Qualidade`: consolidacao final de evidencias de qualidade
-- `🧐 Rita Revisa`: revisao final de coerencia, risco e prontidao
+- `🔐 Caio Cyber`: segurança, auth e mitigação
+- `🧪 Tito Testes`: testes e smoke técnico
+- `🧐 Aline Avalia`: aderência a PRD, UX, segurança e testes
+- `✅ Quirino Qualidade`: critérios de aceite e regressão
+- `🗣️ Livia Linguistica`: português do Brasil para produto
+- `⚡ Pericles Performance`: gargalos e otimização
+- `🧪 Clara Qualidade`: consolidação final de evidências
+- `🧐 Rita Revisa`: revisão final de coerência e risco
 
-### Regras de operacao do time
+## Regras operacionais do squad
 
-- `🎨 Pencil first`: qualquer tela nova ou mudanca visual relevante deve passar pelo Pencil antes do front-end
-- `🖼️ Gemini for images`: quando houver imagem real, a trilha padrao e Gemini Imagen
-- `💬 Ask when blocked`: quando faltar contexto decisivo, o agente pergunta antes de assumir
-- `💸 Token discipline`: o modo `lite` comprime contexto e prioriza tarefas pequenas e executaveis
+- `🎨 Pencil first`: mudanças visuais relevantes passam pelo Pencil antes do frontend
+- `🖼️ Gemini for images`: imagens reais usam Gemini Imagen
+- `💬 Ask when blocked`: dúvida crítica pede pergunta curta, não chute
+- `💸 Token discipline`: `lite` reduz contexto e força tarefas menores
 
-## 🛡️ Politicas operacionais embutidas
+## Instalação
 
-- telas e UX devem ser desenhadas no Pencil antes de virarem codigo de site
-- frontend nao deve codar tela nova sem `ux-blueprint` ou desenho equivalente
-- imagens devem ser geradas por Gemini, nunca por placeholder aleatorio
-- prompts sempre passam por camada de melhoria de contexto, restricoes e criterio de qualidade
-- em caso de duvida real, o modelo deve perguntar antes de chutar
-
-## 📦 Instalacao local
+### Local
 
 ```bash
 npm install
-npm run build
+npm run build:all
 npm install -g .
 ```
 
-## 🔒 Instalacao a partir de repositorio privado no GitHub
+### GitHub Packages
 
-Quando este pacote estiver em um repositorio proprio privado, voce pode instalar assim:
-
-```bash
-npm install -g git+ssh://git@github.com/Juanblack1/software-factory-cli.git
-```
-
-Alias adicional compativel com o ecossistema CLI-Anything:
-
-```bash
-cli-anything-software-factory --help
-```
-
-Se preferir GitHub Packages, publique o pacote e instale via `.npmrc` autenticado.
-
-## 📦 Instalação via GitHub Packages
-
-O pacote foi preparado para GitHub Packages com o nome:
-
-```text
-@juanblack1/software-factory-cli
-```
-
-Exemplo de `.npmrc`:
+`.npmrc`:
 
 ```ini
 @juanblack1:registry=https://npm.pkg.github.com
-//npm.pkg.github.com/:_authToken=SEU_TOKEN_COM_write_packages
+//npm.pkg.github.com/:_authToken=SEU_TOKEN
 ```
 
 Instalação:
@@ -120,163 +167,119 @@ Instalação:
 npm install -g @juanblack1/software-factory-cli
 ```
 
-## ⚙️ Configuracao
+### Repositório privado
 
-Edite `.env`:
+```bash
+npm install -g git+ssh://git@github.com/Juanblack1/software-factory-cli.git
+```
+
+## Configuração
+
+Exemplo de `.env`:
 
 ```env
 SF_PROVIDER=openai
 SF_EFFORT=balanced
 SF_MODEL=
-OPENAI_API_KEY=...
+
+OPENAI_API_KEY=
 OPENAI_MODEL=gpt-5.4
 
-OPENAI_COMPATIBLE_API_KEY=...
-OPENAI_COMPATIBLE_BASE_URL=https://seu-endpoint-openai-compatible/v1
-OPENAI_COMPATIBLE_MODEL=...
+OPENAI_COMPATIBLE_API_KEY=
+OPENAI_COMPATIBLE_BASE_URL=
+OPENAI_COMPATIBLE_MODEL=
 
-GEMINI_API_KEY=...
+GEMINI_API_KEY=
 GEMINI_IMAGE_MODEL=imagen-4.0-generate-001
 
 OPENCODE_COMMAND_TEMPLATE=opencode run "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains." --dir "{workspace}" --file "{promptFile}"
 OPENCODE_MODEL=
+
 CODEX_COMMAND_TEMPLATE=codex exec -
 CODEX_MODEL=
+
 CLAUDE_COMMAND_TEMPLATE=claude -p
 CLAUDE_MODEL=
+
 GEMINI_COMMAND_TEMPLATE=gemini -p "{promptFile}"
 GEMINI_MODEL=
 ```
 
-Para usar OpenCode como provider principal:
+## Providers e modelos
 
-```env
-SF_PROVIDER=opencode
-```
-
-Para usar Codex, Claude ou Gemini por CLI externa:
-
-```env
-SF_PROVIDER=codex
-# ou claude ou gemini
-```
-
-Para usar um endpoint OpenAI-compatible:
-
-```env
-SF_PROVIDER=openai-compatible
-OPENAI_COMPATIBLE_API_KEY=...
-OPENAI_COMPATIBLE_BASE_URL=https://seu-endpoint-openai-compatible/v1
-OPENAI_COMPATIBLE_MODEL=...
-```
-
-## 💸 Perfis de custo
-
-- `lite`: menor consumo de tokens, contexto condensado, tarefas menores e mais objetivas
-- `balanced`: padrao recomendado, bom equilibrio entre detalhe e custo
-- `deep`: mais profundidade de analise, ainda evitando repeticao inutil
-
-Exemplo:
-
-```bash
-software-factory run --name onboarding-dashboard --brief "Criar onboarding" --effort lite
-```
-
-## 🧬 Escolha de provider e modelo
-
-Listar providers detectados:
+Ver providers detectados:
 
 ```bash
 software-factory providers
 ```
 
-Listar modelos ativos e sugeridos:
+Ver modelos ativos e sugeridos:
 
 ```bash
 software-factory models
 software-factory models --provider codex
 ```
 
-Executar escolhendo provider e modelo explicitamente:
+Executar com provider/model explícitos:
 
 ```bash
-software-factory create-prd --name onboarding-dashboard --brief "Criar onboarding" --provider openai --model gpt-5.4
-software-factory create-techspec --name onboarding-dashboard --brief "Detalhar arquitetura" --provider codex --model gpt-5.4
-software-factory run --name onboarding-dashboard --brief "Executar fluxo completo" --provider claude --model sonnet
+software-factory create-prd --name onboarding --brief "Criar onboarding" --provider openai --model gpt-5.4
+software-factory run --name onboarding --brief "Executar fluxo completo" --provider codex --model gpt-5.4 --effort lite
 ```
 
-O alias compatível com CLI-Anything funciona do mesmo jeito:
+## Fluxo básico
 
-```bash
-cli-anything-software-factory providers
-cli-anything-software-factory models --provider openai
-```
-
-## ▶️ Uso rapido
-
-### 1. Inicializar o projeto alvo
+### Inicializar
 
 ```bash
 software-factory init --target .
 ```
 
-### 2. Rodar um run completo
+### Gerar PRD
 
 ```bash
-software-factory run --name onboarding-dashboard --brief "Criar feature de onboarding com dashboard inicial" --workspace . --effort lite
+software-factory create-prd --name onboarding --brief "Criar onboarding com dashboard inicial"
 ```
 
-### 2.1. Gerar apenas o PRD
+### Gerar Tech Spec
 
 ```bash
-software-factory create-prd --name onboarding-dashboard --brief "Criar feature de onboarding com dashboard inicial" --workspace .
+software-factory create-techspec --name onboarding --brief "Detalhar a implementação do onboarding"
 ```
 
-### 2.2. Gerar apenas o Tech Spec
+### Gerar Tasks
 
 ```bash
-software-factory create-techspec --name onboarding-dashboard --brief "Detalhar a implementacao do onboarding dashboard" --workspace .
+software-factory create-tasks --name onboarding --brief "Quebrar onboarding em tarefas pequenas" --effort lite
 ```
 
-### 2.3. Gerar apenas as Tasks
+### Rodar fluxo completo
 
 ```bash
-software-factory create-tasks --name onboarding-dashboard --brief "Quebrar onboarding dashboard em tarefas pequenas e executaveis" --workspace . --effort lite
+software-factory run --name onboarding --brief "Executar fluxo completo do onboarding" --provider codex --model gpt-5.4 --effort lite
 ```
 
-### 3. Revisar ou fechar gate
+### Review
 
 ```bash
-software-factory run --mode review --brief "Revisar a implementacao atual do onboarding" --workspace .
+software-factory run --mode review --name onboarding --brief "Revisar a implementação atual"
 ```
 
-### 4. Rodar autonomia do proximo ciclo
+### Autonomia
 
 ```bash
-software-factory run --mode autonomy --brief "Consolidar proximo ciclo apos a rodada atual" --workspace .
+software-factory run --mode autonomy --name onboarding --brief "Consolidar próximo ciclo"
 ```
 
-### 5. Gerar imagem com Gemini
+## Vídeo universal
+
+Planejar edição de vídeo para qualquer editor:
 
 ```bash
-software-factory generate-image --prompt "Premium SaaS dashboard hero, clean, modern, pencil-approved layout" --output .software-factory/assets/hero.png
+software-factory video-plan --name reels-edit --input ./video.mp4 --goal "Criar um reels com cortes rápidos, legenda e foco no gancho inicial" --editor generic --provider codex --model gpt-5.4 --effort lite
 ```
 
-### 5.1. Planejar edicao de video para qualquer editor
-
-```bash
-software-factory video-plan --name reels-edit --input ./video.mp4 --goal "Transformar este video em um reels com cortes rapidos, legendas e foco no gancho inicial" --editor generic --provider codex --model gpt-5.4 --effort lite
-```
-
-Isso gera:
-
-- `source-metadata.json`
-- `edit-plan.md`
-- `import-guide.md`
-- `ffmpeg-template.ps1`
-- `asset-checklist.md`
-
-### 5.2. Gerar pacote de importacao para editor especifico
+Gerar pacote para editor:
 
 ```bash
 software-factory video-package --name reels-edit --input ./video.mp4 --editor premiere
@@ -284,7 +287,7 @@ software-factory video-package --name reels-edit --input ./video.mp4 --editor da
 software-factory video-package --name reels-edit --input ./video.mp4 --editor capcut
 ```
 
-Editores suportados hoje:
+Editores suportados:
 
 - `generic`
 - `capcut`
@@ -294,127 +297,78 @@ Editores suportados hoje:
 - `kdenlive`
 - `final-cut`
 
-### 6. Validar ambiente e binario do provider
-
-```bash
-software-factory doctor
-```
-
-### 6.1. Listar todos os providers e sua saude
-
-```bash
-software-factory providers
-```
-
-Listar modelos por provider:
-
-```bash
-software-factory models
-```
-
-O `doctor` agora informa:
-
-- provider selecionado
-- tipo do provider (`api` ou `cli`)
-- template do comando
-- binario detectado no PATH
-- fallbacks disponiveis para providers CLI como `opencode`
-
-O comando `providers` mostra a matriz completa de providers com:
-
-- disponibilidade real no PATH
-- templates configurados
-- estrategia de economia de tokens
-- readiness por provider
-- cadeia de fallback quando aplicavel
-
-O comando `models` mostra:
-
-- modelo ativo por provider
-- variavel de ambiente usada para esse modelo
-- modelos sugeridos por provider
-- como sobrescrever por `--model`
-
-### 7. Publicar o proprio pacote em repo privado no GitHub
-
-```bash
-software-factory publish --repo software-factory-cli --workspace .
-```
-
-## 🗂️ Estrutura criada no projeto alvo
+## Estrutura do workflow
 
 ```text
 .software-factory/
-  software-factory.config.json
-  POLICIES.md
-  runs/
-    2026-04-02T130000Z/
-      brief.md
-      prompt.md
-      response.md
-      meta.json
   workflows/
-    onboarding-dashboard/
+    onboarding/
       _brief.md
       _prd.md
       _techspec.md
       _tasks.md
       task_01.md
-      task_02.md
       summary.md
       memory/
         MEMORY.md
-        onboarding-dashboard.md
+        onboarding.md
       reviews/
         reviews-123456/
-          _meta.md
           summary.md
           issue_001.md
-          issue_002.md
-      runs/
-        2026-04-02T130000Z/
-          response.md
 ```
 
-## 📝 Publicacao privada com boa descricao
+## Arquitetura 2.0
 
-Antes de publicar:
+Implementado hoje:
 
-1. ajuste `author`, `version` e URL do repositorio em `package.json`
-2. use esta descricao detalhada em PT-BR no repositorio:
+- `packages/core`
+- `packages/artifact-engine`
+- `packages/memory-engine`
+- `packages/squad-runtime`
+- `packages/provider-runtime`
+- `packages/retrieval`
+- `apps/server`
+- `apps/mcp`
+- `apps/web`
 
-`CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, artefatos no estilo PRD/Tech Spec/Tasks/Review, providers OpenAI, OpenAI-compatible e OpenCode, UX Pencil-first antes de frontend, geracao de imagens via Gemini Imagen, memoria de workflow e rounds de review rastreaveis.`
+Documentação:
 
-3. rode `npm run check`
-4. publique em repo privado com `software-factory publish`
-5. para GitHub Packages, configure `.npmrc` com token que tenha `write:packages`
+- `docs/software-factory-2.0.md`
+- `docs/software-factory-2.0-roadmap.md`
 
-Exemplo de publicacao com token dedicado:
+## Scripts úteis
+
+```bash
+npm run build
+npm run build:server
+npm run build:mcp
+npm run build:all
+npm test
+npm run check
+```
+
+## Publicação
+
+Publicar o próprio pacote e atualizar o repositório:
+
+```bash
+software-factory publish --repo software-factory-cli --workspace .
+```
+
+Com GitHub Packages:
 
 ```bash
 set GITHUB_PACKAGES_TOKEN=seu_token
 software-factory publish --repo software-factory-cli --workspace . --github-packages
 ```
 
-Ou usando outro nome de variavel:
+## Status
 
-```bash
-set MEU_TOKEN_PACKAGES=seu_token
-software-factory publish --repo software-factory-cli --workspace . --github-packages --github-packages-token-env MEU_TOKEN_PACKAGES
-```
+✅ pronto para uso real por CLI  
+✅ pronto para uso por HTTP server  
+✅ pronto para uso por MCP  
+✅ pronto para planejamento universal de vídeo  
+✅ pronto para publicação privada e GitHub Packages  
 
-## 🧭 Fluxo recomendado de uso
-
-1. `software-factory init --target .`
-2. `software-factory doctor --provider opencode`
-3. `software-factory create-prd --name <feature> --brief "..." --effort lite`
-4. `software-factory create-techspec --name <feature> --brief "..." --effort lite`
-5. `software-factory create-tasks --name <feature> --brief "..." --effort lite`
-6. `software-factory run --name <feature> --brief "..." --provider <provider>`
-7. `software-factory run --mode review --name <feature> --brief "Revisar a implementacao atual"`
-8. `software-factory run --mode autonomy --name <feature> --brief "Consolidar proximo ciclo"`
-9. `software-factory publish --repo software-factory-cli --workspace .`
-
-## ✅ Estado atual
-
-Esta versao ja compila, testa, gera runs, cria workflows, task files e rounds de review, e consegue ser publicada em um repositório privado. `openai` sai pronto; `openai-compatible` depende de endpoint compatível; `opencode`, `codex`, `claude` e `gemini` usam templates de comando ajustáveis no `.env`. Para providers CLI, o `doctor` agora mostra binario detectado e fallback disponivel.
+O próximo salto natural é endurecer observabilidade, streaming e cockpit visual mais completo sobre o server atual.

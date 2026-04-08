@@ -5,6 +5,7 @@ import { loadEnvironment, loadSoftwareFactoryConfig } from "../config.js";
 import { DEFAULT_CONFIG } from "../default-config.js";
 import { ensureDir, timestampForRun, writeText } from "../fs-utils.js";
 import { resolveModelForProvider } from "../model-utils.js";
+import { retrieveStageContext } from "../../packages/retrieval/src/index.js";
 import { createProvider } from "../provider-factory.js";
 import { buildPrompt } from "../prompt-builder.js";
 import { getStageSquadPacket, loadSoftwareFactoryContext } from "../squad-loader.js";
@@ -43,6 +44,12 @@ export async function runSoftwareFactoryCommand(options: {
 
   const squadPacket = getStageSquadPacket(stage);
   const workflowSnapshot = await loadWorkflowArtifactSnapshot(workflowPaths);
+  const retrievedContext = retrieveStageContext({
+    stage,
+    brief: options.brief,
+    workflowSnapshot,
+    squadPacket,
+  });
   const prompt = buildPrompt(
     config,
     options.brief,
@@ -52,6 +59,7 @@ export async function runSoftwareFactoryCommand(options: {
     options.workspaceDir,
     squadPacket,
     workflowSnapshot,
+    retrievedContext,
     workflowName,
   );
   const promptText = `# System\n\n${prompt.system}\n\n# User\n\n${prompt.user}\n`;

@@ -1,6 +1,13 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import {
+  extractMarkdownSection,
+  parseReviewIssues,
+  parseTaskBlock,
+  splitTaskBlocks,
+} from "../packages/artifact-engine/src/index.js";
+import { buildEmptyWorkflowMemory, mergeMemoryContent } from "../packages/memory-engine/src/index.js";
 import { ensureDir, fileExists, writeText } from "./fs-utils.js";
 import type { RunStage, WorkflowPaths } from "./types.js";
 
@@ -48,10 +55,7 @@ export async function initializeWorkflow(paths: WorkflowPaths, brief: string) {
   await ensureDir(paths.currentRunDir);
 
   if (!(await fileExists(paths.sharedMemoryPath))) {
-    await writeText(
-      paths.sharedMemoryPath,
-      `# Workflow Memory\n\n## Decisoes duraveis\n\n## Riscos ativos\n\n## Handoffs reutilizaveis\n\n## Preferencias aprovadas\n`,
-    );
+    await writeText(paths.sharedMemoryPath, `${buildEmptyWorkflowMemory()}\n`);
   }
 
   if (!(await fileExists(paths.taskMemoryPath))) {
@@ -65,61 +69,11 @@ export async function initializeWorkflow(paths: WorkflowPaths, brief: string) {
 }
 
 function extractSection(content: string, heading: string) {
-  const sections = parseMarkdownSections(content);
-  return (sections.get(heading) || []).join("\n").trim();
-}
-
-function splitTaskBlocks(taskSection: string) {
-  const blocks = taskSection
-    .split(/\n(?=###\s+)/g)
-    .map((block) => block.trim())
-    .filter(Boolean);
-
-  return blocks.filter((block) => block.startsWith("### "));
+  return extractMarkdownSection(content, heading);
 }
 
 function normalizeTaskFileName(index: number) {
   return `task_${String(index).padStart(2, "0")}.md`;
-}
-
-function parseTaskListValue(value: string) {
-  if (!value || value.toLowerCase() === "nenhuma") {
-    return [] as string[];
-  }
-
-  return value
-    .split(/,|;/)
-    .map((item) => item.trim())
-    .filter(Boolean);
-}
-
-function parseTaskBlock(block: string) {
-  const lines = block.split("\n");
-  const title = lines[0]?.replace(/^###\s*/, "").trim() || "Task";
-  const metadata = new Map<string, string>();
-  const bodyLines: string[] = [];
-
-  for (const line of lines.slice(1)) {
-    const metadataMatch = line.match(/^-\s+([^:]+):\s*(.+)$/);
-
-    if (metadataMatch) {
-      metadata.set(metadataMatch[1].trim().toLowerCase(), metadataMatch[2].trim());
-      continue;
-    }
-
-    bodyLines.push(line);
-  }
-
-  return {
-    title,
-    owner: metadata.get("owner") || "unassigned",
-    domain: metadata.get("dominio") || metadata.get("domain") || "feature",
-    complexity: metadata.get("complexidade") || metadata.get("complexity") || "medium",
-    dependencies: parseTaskListValue(metadata.get("dependencias") || metadata.get("dependencies") || ""),
-    deliverables: parseTaskListValue(metadata.get("entregaveis") || metadata.get("deliverables") || ""),
-    evidence: parseTaskListValue(metadata.get("testes e evidencias") || metadata.get("evidence") || ""),
-    body: bodyLines.join("\n").trim(),
-  };
 }
 
 async function writeTaskFiles(paths: WorkflowPaths, taskSection: string) {
@@ -174,63 +128,6 @@ async function writeTaskFiles(paths: WorkflowPaths, taskSection: string) {
   }
 }
 
-function parsePipeIssue(line: string) {
-  const parts = line.split("|").map((part) => part.trim());
-
-  if (parts.length < 5) {
-    return null;
-  }
-
-  return {
-    severity: parts[0],
-    file: parts[1],
-    line: parts[2],
-    title: parts[3],
-    recommendation: parts.slice(4).join(" | "),
-  };
-}
-
-function parseHeadingIssues(findingsSection: string) {
-  const regex = /###\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^|\n]+)\|\s*([^\n]+)\n([\s\S]*?)(?=\n###\s*[^|\n]+\||$)/g;
-  const issues: Array<{
-    severity: string;
-    file: string;
-    line: string;
-    title: string;
-    recommendation: string;
-  }> = [];
-
-  for (const match of findingsSection.matchAll(regex)) {
-    issues.push({
-      severity: match[1].trim(),
-      file: match[2].trim(),
-      line: match[3].trim(),
-      title: match[4].trim(),
-      recommendation: match[5].trim() || "No recommendation provided.",
-    });
-  }
-
-  return issues;
-}
-
-function parseReviewIssues(findingsSection: string) {
-  const pipeIssues = findingsSection
-    .split("\n")
-    .map((line) => line.trim())
-    .filter((line) => line.startsWith("- "))
-    .map((line) => line.replace(/^-\s*/, ""))
-    .map((line) => parsePipeIssue(line))
-    .filter(Boolean) as Array<{
-    severity: string;
-    file: string;
-    line: string;
-    title: string;
-    recommendation: string;
-  }>;
-
-  return pipeIssues.length > 0 ? pipeIssues : parseHeadingIssues(findingsSection);
-}
-
 async function writeReviewIssueFiles(reviewRoundDir: string, findingsSection: string) {
   const issues = parseReviewIssues(findingsSection);
 
@@ -261,75 +158,6 @@ async function writeReviewIssueFiles(reviewRoundDir: string, findingsSection: st
       ].join("\n"),
     );
   }
-}
-
-function parseMarkdownSections(content: string) {
-  const lines = content.replace(/\r/g, "").split("\n");
-  const sections = new Map<string, string[]>();
-  let current = "__root__";
-
-  for (const line of lines) {
-    const match = line.match(/^##\s+(.+)$/);
-
-    if (match) {
-      current = match[1].trim();
-      if (!sections.has(current)) {
-        sections.set(current, []);
-      }
-      continue;
-    }
-
-    if (!sections.has(current)) {
-      sections.set(current, []);
-    }
-
-    sections.get(current)?.push(line);
-  }
-
-  return sections;
-}
-
-function uniqueNonEmptyLines(lines: string[]) {
-  const seen = new Set<string>();
-  const output: string[] = [];
-
-  for (const line of lines.map((entry) => entry.trimEnd())) {
-    const normalized = line.trim();
-
-    if (!normalized) {
-      continue;
-    }
-
-    if (seen.has(normalized)) {
-      continue;
-    }
-
-    seen.add(normalized);
-    output.push(line);
-  }
-
-  return output;
-}
-
-function mergeMemoryContent(existing: string, incomingSection: string, targetHeading: string) {
-  const sections = parseMarkdownSections(existing);
-  const incomingLines = uniqueNonEmptyLines(incomingSection.split("\n"));
-  const currentLines = uniqueNonEmptyLines(sections.get(targetHeading) || []);
-  const mergedLines = uniqueNonEmptyLines([...currentLines, ...incomingLines]);
-  sections.set(targetHeading, mergedLines);
-
-  const orderedHeadings = ["Decisoes duraveis", "Riscos ativos", "Handoffs reutilizaveis", "Preferencias aprovadas"];
-
-  return [
-    "# Workflow Memory",
-    "",
-    ...orderedHeadings.flatMap((heading) => [
-      `## ${heading}`,
-      "",
-      ...(sections.get(heading) && sections.get(heading)?.length ? sections.get(heading)! : ["- none"]),
-      "",
-    ]),
-  ].join("\n").trimEnd() + "\n";
 }
 
 function nextStepForStage(stage: RunStage) {
@@ -480,7 +308,7 @@ export async function writeWorkflowArtifacts(
   if (stage === "autonomy") {
     const existingMemory = (await fileExists(paths.sharedMemoryPath))
       ? await fs.readFile(paths.sharedMemoryPath, "utf8")
-      : "# Workflow Memory\n\n## Decisoes duraveis\n\n## Riscos ativos\n\n## Handoffs reutilizaveis\n\n## Preferencias aprovadas\n";
+      : `${buildEmptyWorkflowMemory()}\n`;
     const durableMemory = extractSection(responseText, "Durable Workflow Memory") || responseText;
     const firstHandoff = extractSection(responseText, "First Handoff");
     const merged = mergeMemoryContent(existingMemory, durableMemory, "Decisoes duraveis");

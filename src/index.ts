@@ -2,7 +2,9 @@
 
 import fs from "node:fs/promises";
 import path from "node:path";
+import { spawn } from "node:child_process";
 import { parseArgs } from "node:util";
+import { fileURLToPath } from "node:url";
 
 import { runDoctorCommand } from "./commands/doctor.js";
 import { runGenerateImageCommand } from "./commands/generate-image.js";
@@ -23,6 +25,9 @@ function printHelp() {
 
 Commands:
   software-factory init [--target path] [--force]
+  software-factory serve
+  software-factory mcp
+  software-factory web
   software-factory run --brief "..." [--name workflow] [--mode full-run|review|autonomy] [--provider ${listProviderNames().join("|")}] [--effort lite|balanced|deep] [--workspace path] [--dry-run]
   software-factory create-prd --brief "..." [--name workflow]
   software-factory create-techspec --brief "..." [--name workflow]
@@ -35,6 +40,38 @@ Commands:
   software-factory doctor [--workspace path] [--provider ${listProviderNames().join("|")}]
   software-factory publish [--owner login] [--repo nome-do-repo] [--github-packages] [--github-packages-token-env VAR]
 `);
+}
+
+function resolvePackageRoot() {
+  return path.resolve(path.dirname(fileURLToPath(import.meta.url)), "..", "..");
+}
+
+async function spawnNodeEntrypoint(relativePath: string) {
+  const root = resolvePackageRoot();
+  const entrypoint = path.join(root, relativePath);
+  try {
+    await fs.access(entrypoint);
+  } catch {
+    throw new Error(`Entrypoint nao encontrado: ${entrypoint}. Rode o build correspondente antes de usar este comando.`);
+  }
+
+  const child = spawn(process.execPath, [entrypoint], {
+    cwd: root,
+    stdio: "inherit",
+    env: process.env,
+    shell: false,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code && code !== 0) {
+        reject(new Error(`Entrypoint saiu com codigo ${code}.`));
+        return;
+      }
+      resolve();
+    });
+  });
 }
 
 async function readBrief(flags: { brief?: string; briefFile?: string }) {
@@ -70,6 +107,21 @@ async function main() {
     const targetDir = path.resolve(values.target || process.cwd());
     await runInitCommand(targetDir, Boolean(values.force));
     console.log(`Software Factory inicializado em ${targetDir}`);
+    return;
+  }
+
+  if (command === "serve") {
+    await spawnNodeEntrypoint(path.join("apps", "server", "dist", "apps", "server", "src", "index.js"));
+    return;
+  }
+
+  if (command === "mcp") {
+    await spawnNodeEntrypoint(path.join("apps", "mcp", "dist", "apps", "mcp", "src", "index.js"));
+    return;
+  }
+
+  if (command === "web") {
+    await spawnNodeEntrypoint(path.join("apps", "web", "server.mjs"));
     return;
   }
 

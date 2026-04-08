@@ -4,3 +4,6 @@ dist/
 .env
 .env.local
 *.log
+src/**/*.js
+packages/**/*.js
+apps/**/dist/

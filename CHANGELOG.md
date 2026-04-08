@@ -1,5 +1,14 @@
 # Changelog
 
+## v0.4.0
+
+- adiciona `packages/provider-runtime`, `packages/squad-runtime` e `packages/retrieval` como camadas reais do `software-factory 2.0`
+- adiciona `apps/server` com endpoints de `health`, `providers`, `models`, `workflows`, `artifacts`, `stages` e `retrieval`
+- adiciona `apps/mcp` com tools agent-native via `stdio`
+- adiciona `apps/web` como cockpit inicial para operar o server visualmente
+- adiciona comandos de conveniencia `serve`, `mcp` e `web` pela propria CLI
+- endurece o pacote para distribuicao com `build:all` e inclusao de `apps/` e `docs/`
+
 ## v0.3.0
 
 - adiciona fluxo universal de edicao de video com `video-plan` e `video-package`

@@ -1,0 +1,49 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>software-factory 2.0 cockpit</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <main class="app-shell">
+      <header class="hero">
+        <div>
+          <p class="eyebrow">software-factory 2.0</p>
+          <h1>Cockpit operacional do orquestrador</h1>
+          <p class="subtitle">Server, workflows, providers e modelos em uma superficie visual minima e util.</p>
+        </div>
+        <div class="server-config">
+          <label for="server-url">Server URL</label>
+          <input id="server-url" value="http://127.0.0.1:4111" />
+          <button id="refresh-all">Atualizar</button>
+        </div>
+      </header>
+
+      <section class="grid two-col">
+        <article class="card">
+          <h2>Health</h2>
+          <pre id="health-output">Aguardando...</pre>
+        </article>
+        <article class="card">
+          <h2>Models</h2>
+          <pre id="models-output">Aguardando...</pre>
+        </article>
+      </section>
+
+      <section class="grid two-col">
+        <article class="card">
+          <h2>Providers</h2>
+          <pre id="providers-output">Aguardando...</pre>
+        </article>
+        <article class="card">
+          <h2>Workflows</h2>
+          <pre id="workflows-output">Aguardando...</pre>
+        </article>
+      </section>
+    </main>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+  </html>
