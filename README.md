@@ -7,6 +7,7 @@
 - executa o `software-factory` como fluxo CLI-first
 - suporta providers dedicados `openai`, `openai-compatible`, `opencode`, `codex`, `claude` e `gemini`
 - suporta escolha explicita de `provider` e `model` por comando
+- suporta workflow universal de edicao de video para qualquer editor via `video-plan` e `video-package`
 - cria estrutura `.software-factory/` no projeto alvo
 - cria workflows por feature com `_brief.md`, `_prd.md`, `_techspec.md`, `_tasks.md`, memoria e rounds de review
 - guarda runs, prompts, respostas e metadados por execucao
@@ -260,6 +261,38 @@ software-factory run --mode autonomy --brief "Consolidar proximo ciclo apos a ro
 ```bash
 software-factory generate-image --prompt "Premium SaaS dashboard hero, clean, modern, pencil-approved layout" --output .software-factory/assets/hero.png
 ```
+
+### 5.1. Planejar edicao de video para qualquer editor
+
+```bash
+software-factory video-plan --name reels-edit --input ./video.mp4 --goal "Transformar este video em um reels com cortes rapidos, legendas e foco no gancho inicial" --editor generic --provider codex --model gpt-5.4 --effort lite
+```
+
+Isso gera:
+
+- `source-metadata.json`
+- `edit-plan.md`
+- `import-guide.md`
+- `ffmpeg-template.ps1`
+- `asset-checklist.md`
+
+### 5.2. Gerar pacote de importacao para editor especifico
+
+```bash
+software-factory video-package --name reels-edit --input ./video.mp4 --editor premiere
+software-factory video-package --name reels-edit --input ./video.mp4 --editor davinci
+software-factory video-package --name reels-edit --input ./video.mp4 --editor capcut
+```
+
+Editores suportados hoje:
+
+- `generic`
+- `capcut`
+- `premiere`
+- `davinci`
+- `shotcut`
+- `kdenlive`
+- `final-cut`
 
 ### 6. Validar ambiente e binario do provider
 

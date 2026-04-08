@@ -1,5 +1,12 @@
 # Changelog
 
+## v0.3.0
+
+- adiciona fluxo universal de edicao de video com `video-plan` e `video-package`
+- gera plano de edicao, guia de importacao, metadata de origem, checklist de assets e baseline `ffmpeg`
+- suporta pacote de importacao para `generic`, `capcut`, `premiere`, `davinci`, `shotcut`, `kdenlive` e `final-cut`
+- reforca a CLI como orquestrador universal para tarefas de software e midia
+
 ## v0.2.0
 
 - adiciona carregamento real do squad `software-factory` embutido na CLI

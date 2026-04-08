@@ -11,9 +11,12 @@ import { runModelsCommand } from "./commands/models.js";
 import { runPublishCommand } from "./commands/publish.js";
 import { runProvidersCommand } from "./commands/providers.js";
 import { runSoftwareFactoryCommand } from "./commands/run.js";
+import { runVideoPackageCommand } from "./commands/video-package.js";
+import { runVideoPlanCommand } from "./commands/video-plan.js";
 import { resolveEffort, resolveProvider } from "./config.js";
 import { listProviderNames } from "./provider-registry.js";
 import type { RunMode, RunStage } from "./types.js";
+import { SUPPORTED_VIDEO_EDITORS } from "./video-utils.js";
 
 function printHelp() {
   console.log(`software-factory
@@ -24,6 +27,8 @@ Commands:
   software-factory create-prd --brief "..." [--name workflow]
   software-factory create-techspec --brief "..." [--name workflow]
   software-factory create-tasks --brief "..." [--name workflow]
+  software-factory video-plan --name workflow --input video.mp4 --goal "..." [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
+  software-factory video-package --name workflow --input video.mp4 [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}]
   software-factory providers [--workspace path]
   software-factory models [--provider ${listProviderNames().join("|")}] [--workspace path]
   software-factory generate-image --prompt "..." --output path [--aspect-ratio 16:9]
@@ -140,6 +145,80 @@ async function main() {
       outputPath: values.output,
       aspectRatio: values["aspect-ratio"] || "16:9",
       model: values.model,
+    });
+
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "video-plan") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        name: { type: "string" },
+        input: { type: "string" },
+        goal: { type: "string" },
+        editor: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+        workspace: { type: "string" },
+        "dry-run": { type: "boolean" },
+      },
+      allowPositionals: false,
+    });
+
+    if (!values.name || !values.input || !values.goal) {
+      throw new Error("Informe --name, --input e --goal.");
+    }
+
+    const editor = (values.editor || "generic") as (typeof SUPPORTED_VIDEO_EDITORS)[number];
+    if (!SUPPORTED_VIDEO_EDITORS.includes(editor)) {
+      throw new Error(`Editor invalido: ${editor}`);
+    }
+
+    const result = await runVideoPlanCommand({
+      workspaceDir: path.resolve(values.workspace || process.cwd()),
+      workflowName: values.name,
+      inputPath: values.input,
+      goal: values.goal,
+      editor,
+      provider: resolveProvider(values.provider),
+      effort: resolveEffort(values.effort),
+      model: values.model,
+      dryRun: Boolean(values["dry-run"]),
+    });
+
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "video-package") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        name: { type: "string" },
+        input: { type: "string" },
+        editor: { type: "string" },
+        workspace: { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    if (!values.name || !values.input) {
+      throw new Error("Informe --name e --input.");
+    }
+
+    const editor = (values.editor || "generic") as (typeof SUPPORTED_VIDEO_EDITORS)[number];
+    if (!SUPPORTED_VIDEO_EDITORS.includes(editor)) {
+      throw new Error(`Editor invalido: ${editor}`);
+    }
+
+    const result = await runVideoPackageCommand({
+      workspaceDir: path.resolve(values.workspace || process.cwd()),
+      workflowName: values.name,
+      inputPath: values.input,
+      editor,
     });
 
     console.log(JSON.stringify(result, null, 2));

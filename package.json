@@ -1,7 +1,7 @@
 {
   "name": "@juanblack1/software-factory-cli",
-  "version": "0.2.0",
-  "description": "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first e imagens via Gemini.",
+  "version": "0.3.0",
+  "description": "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first, imagens via Gemini e planejamento universal de edicao de video.",
   "type": "module",
   "bin": {
     "software-factory": "dist/index.js",
