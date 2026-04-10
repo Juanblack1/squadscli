@@ -97,4 +97,30 @@ describe("buildPrompt", () => {
     expect(prompt.user).toContain("### Current PRD");
     expect(prompt.user).toContain("### Individual task files");
   });
+
+  it("includes operator-selected focus skills when provided", () => {
+    const retrieved = retrieveStageContext({
+      stage: "tasks",
+      brief: "Quebrar onboarding em tarefas pequenas",
+      workflowSnapshot,
+      squadPacket: getStageSquadPacket("tasks"),
+    });
+    const prompt = buildPrompt(
+      DEFAULT_CONFIG,
+      "Quebrar onboarding em tarefas pequenas",
+      "full-run",
+      "tasks",
+      "balanced",
+      "C:/repo",
+      getStageSquadPacket("tasks"),
+      workflowSnapshot,
+      retrieved,
+      "test-workflow",
+      ["api-design", "code-review"],
+    );
+
+    expect(prompt.user).toContain("Operator-selected focus skills:");
+    expect(prompt.user).toContain("- api-design");
+    expect(prompt.user).toContain("- code-review");
+  });
 });

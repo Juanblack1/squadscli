@@ -23,6 +23,7 @@ export async function runSoftwareFactoryCommand(options: {
   model?: string;
   provider: ProviderName;
   dryRun: boolean;
+  focusSkills?: string[];
 }) {
   await loadEnvironment(options.workspaceDir);
 
@@ -61,6 +62,7 @@ export async function runSoftwareFactoryCommand(options: {
     workflowSnapshot,
     retrievedContext,
     workflowName,
+    options.focusSkills || [],
   );
   const promptText = `# System\n\n${prompt.system}\n\n# User\n\n${prompt.user}\n`;
 
@@ -79,6 +81,7 @@ export async function runSoftwareFactoryCommand(options: {
         effort,
         model: model || null,
         provider: options.provider,
+        focusSkills: options.focusSkills || [],
         workspaceDir: options.workspaceDir,
       },
       null,

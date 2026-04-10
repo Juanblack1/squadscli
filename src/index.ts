@@ -7,6 +7,7 @@ import { parseArgs } from "node:util";
 import { fileURLToPath } from "node:url";
 
 import { runDoctorCommand } from "./commands/doctor.js";
+import { runConsoleCommand } from "./commands/console.js";
 import { runGenerateImageCommand } from "./commands/generate-image.js";
 import { runInitCommand } from "./commands/init.js";
 import { runModelsCommand } from "./commands/models.js";
@@ -19,6 +20,7 @@ import { runVideoShortsCommand } from "./commands/video-shorts.js";
 import { runYouTubeAuthCommand } from "./commands/youtube-auth.js";
 import { runYouTubeUploadCommand } from "./commands/youtube-upload.js";
 import { resolveEffort, resolveProvider } from "./config.js";
+import { parseSkillSelection } from "./console-utils.js";
 import { listProviderNames } from "./provider-registry.js";
 import type { RunMode, RunStage } from "./types.js";
 import { SUPPORTED_VIDEO_EDITORS } from "./video-utils.js";
@@ -28,13 +30,14 @@ function printHelp() {
 
 Commands:
   software-factory init [--target path] [--force]
+  software-factory console [--workspace path]
   software-factory serve
   software-factory mcp
   software-factory web
-  software-factory run --brief "..." [--name workflow] [--mode full-run|review|autonomy] [--provider ${listProviderNames().join("|")}] [--effort lite|balanced|deep] [--workspace path] [--dry-run]
-  software-factory create-prd --brief "..." [--name workflow]
-  software-factory create-techspec --brief "..." [--name workflow]
-  software-factory create-tasks --brief "..." [--name workflow]
+  software-factory run --brief "..." [--name workflow] [--mode full-run|review|autonomy] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b] [--effort lite|balanced|deep] [--workspace path] [--dry-run]
+  software-factory create-prd --brief "..." [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
+  software-factory create-techspec --brief "..." [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
+  software-factory create-tasks --brief "..." [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
   software-factory video-plan --name workflow --input video.mp4 --goal "..." [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
   software-factory video-package --name workflow --input video.mp4 [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}]
   software-factory video-shorts --name workflow --input video.mp4 --goal "..." [--transcript-file legendas.vtt] [--count 5] [--min-seconds 20] [--max-seconds 45] [--materialize] [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
@@ -116,6 +119,19 @@ async function main() {
     return;
   }
 
+  if (command === "console") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    await runConsoleCommand(path.resolve(values.workspace || process.cwd()));
+    return;
+  }
+
   if (command === "serve") {
     await spawnNodeEntrypoint(path.join("apps", "server", "dist", "apps", "server", "src", "index.js"));
     return;
@@ -142,6 +158,7 @@ async function main() {
         provider: { type: "string" },
         effort: { type: "string" },
         model: { type: "string" },
+        skills: { type: "string" },
         workspace: { type: "string" },
         "dry-run": { type: "boolean" },
       },
@@ -171,10 +188,11 @@ async function main() {
       mode,
       stage,
       effort,
-      model: values.model,
-      provider,
-      dryRun: Boolean(values["dry-run"]),
-    });
+        model: values.model,
+        provider,
+        dryRun: Boolean(values["dry-run"]),
+        focusSkills: parseSkillSelection(values.skills),
+      });
 
     console.log(JSON.stringify(result, null, 2));
     return;

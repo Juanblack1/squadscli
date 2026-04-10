@@ -77,6 +77,7 @@ export function buildPrompt(
   workflowSnapshot: WorkflowArtifactSnapshot,
   retrievedContext: RetrievalChunk[],
   workflowName?: string,
+  focusSkills: string[] = [],
 ): PromptBundle {
   const system = [
     "You are the Software Factory CLI runner.",
@@ -120,12 +121,22 @@ export function buildPrompt(
     "- If ambiguity blocks a safe next step, ask concise questions.",
     "- Prefer reading local artifacts instead of asking to restate known context.",
     "- Keep token usage low by not repeating the same explanation in multiple sections.",
+    "Operator-selected focus skills:",
+    renderFocusSkills(focusSkills),
     "Requested brief:",
     brief.trim(),
     "Return markdown only.",
   ].join("\n\n");
 
   return { system, user };
+}
+
+function renderFocusSkills(focusSkills: string[]) {
+  if (focusSkills.length === 0) {
+    return "No explicit focus skills were selected for this run. Use the default squad package.";
+  }
+
+  return focusSkills.map((skill) => `- ${skill}`).join("\n");
 }
 
 function renderRetrievedContext(chunks: RetrievalChunk[]) {

@@ -181,8 +181,7 @@ const TOOLS: ToolDefinition[] = [
 
 function writeMessage(payload: JsonObject) {
   const body = JSON.stringify(payload);
-  const header = `Content-Length: ${Buffer.byteLength(body, "utf8")}\r\n\r\n`;
-  process.stdout.write(header + body);
+  process.stdout.write(`${body}\n`);
 }
 
 function success(id: string | number | undefined, result: JsonObject) {
@@ -414,27 +413,92 @@ async function handleRequest(request: JsonRpcRequest) {
 
 let buffer = Buffer.alloc(0);
 
+function trimLeadingNewlines(source: Buffer) {
+  let start = 0;
+
+  while (start < source.length && (source[start] === 0x0a || source[start] === 0x0d)) {
+    start += 1;
+  }
+
+  return start === 0 ? source : source.slice(start);
+}
+
+function findHeaderBoundary(source: Buffer) {
+  const crlfIndex = source.indexOf("\r\n\r\n");
+  if (crlfIndex !== -1) {
+    return { headerEnd: crlfIndex, separatorLength: 4 };
+  }
+
+  const lfIndex = source.indexOf("\n\n");
+  if (lfIndex !== -1) {
+    return { headerEnd: lfIndex, separatorLength: 2 };
+  }
+
+  return null;
+}
+
+function extractNextJsonText(source: Buffer) {
+  const normalized = trimLeadingNewlines(source);
+  if (normalized.length === 0) {
+    return null;
+  }
+
+  const firstByte = normalized[0];
+  if (firstByte === 0x7b || firstByte === 0x5b) {
+    const newlineIndex = normalized.indexOf(0x0a);
+    if (newlineIndex === -1) {
+      return null;
+    }
+
+    const jsonText = normalized.slice(0, newlineIndex).toString("utf8").trim();
+    return {
+      jsonText,
+      remaining: normalized.slice(newlineIndex + 1),
+    };
+  }
+
+  const headerBoundary = findHeaderBoundary(normalized);
+  if (!headerBoundary) {
+    return null;
+  }
+
+  const { headerEnd, separatorLength } = headerBoundary;
+  const header = normalized.slice(0, headerEnd).toString("utf8");
+  const lengthMatch = header.match(/Content-Length:\s*(\d+)/i);
+  if (!lengthMatch) {
+    throw new Error("Header Content-Length ausente no transporte MCP.");
+  }
+
+  const contentLength = Number(lengthMatch[1]);
+  const messageStart = headerEnd + separatorLength;
+  const messageEnd = messageStart + contentLength;
+  if (normalized.length < messageEnd) {
+    return null;
+  }
+
+  return {
+    jsonText: normalized.slice(messageStart, messageEnd).toString("utf8"),
+    remaining: normalized.slice(messageEnd),
+  };
+}
+
 process.stdin.on("data", async (chunk: Buffer) => {
   buffer = Buffer.concat([buffer, chunk]);
 
   while (true) {
-    const headerEnd = buffer.indexOf("\r\n\r\n");
-    if (headerEnd === -1) break;
-
-    const header = buffer.slice(0, headerEnd).toString("utf8");
-    const lengthMatch = header.match(/Content-Length:\s*(\d+)/i);
-    if (!lengthMatch) {
+    let extracted;
+    try {
+      extracted = extractNextJsonText(buffer);
+    } catch (error) {
       buffer = Buffer.alloc(0);
+      failure(undefined, error instanceof Error ? error.message : String(error));
       break;
     }
 
-    const contentLength = Number(lengthMatch[1]);
-    const messageStart = headerEnd + 4;
-    const messageEnd = messageStart + contentLength;
-    if (buffer.length < messageEnd) break;
+    if (!extracted) break;
 
-    const jsonText = buffer.slice(messageStart, messageEnd).toString("utf8");
-    buffer = buffer.slice(messageEnd);
+    const { jsonText, remaining } = extracted;
+    buffer = remaining;
 
     try {
       const request = JSON.parse(jsonText) as JsonRpcRequest;

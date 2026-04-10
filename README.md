@@ -29,6 +29,7 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 
 - `software-factory`
 - alias compatível com ambientes agent-native: `cli-anything-software-factory`
+- modo REPL estilo terminal com estado de sessão: `software-factory console`
 
 ### 2. Server HTTP
 
@@ -234,7 +235,84 @@ Executar com provider/model explícitos:
 ```bash
 software-factory create-prd --name onboarding --brief "Criar onboarding" --provider openai --model gpt-5.4
 software-factory run --name onboarding --brief "Executar fluxo completo" --provider codex --model gpt-5.4 --effort lite
+software-factory create-tasks --name onboarding --brief "Quebrar onboarding em tarefas" --provider codex --skills "task-planning,acceptance-gate"
 ```
+
+## Console REPL
+
+Abra o modo interativo:
+
+```bash
+software-factory console
+```
+
+O console mantém uma sessão persistida em `.software-factory/console-session.json` com:
+
+- provider atual
+- model atual
+- effort atual
+- workflow atual
+- stage atual
+- skills focadas
+- modo dry-run/live
+
+Você pode digitar um brief direto para executar com o estado atual da sessão ou usar slash commands:
+
+```text
+/help
+/status
+/providers
+/models
+/workflows
+/history
+/skills
+/doctor
+/provider codex
+/model gpt-5.4
+/workflow onboarding
+/skills set api-design,code-review
+/effort lite
+/prd Criar onboarding com dashboard inicial
+/run Implementar fluxo completo do onboarding
+/review Revisar a implementação atual
+/reset
+/exit
+```
+
+Exemplo de sessão:
+
+```text
+/provider claude
+/model sonnet
+/workflow onboarding
+/skills set task-planning,acceptance-gate
+Implementar fluxo completo de onboarding com foco em conversão
+```
+
+As `skills` escolhidas por `--skills` ou `/skills set ...` entram no prompt como foco operacional da rodada, sem sobrescrever o pacote padrão do squad.
+
+## MCP em Codex e Claude
+
+Registrar no Codex:
+
+```bash
+codex mcp add software-factory -- "%APPDATA%\npm\software-factory.cmd" mcp
+```
+
+Registrar no Claude Code:
+
+```bash
+claude mcp add -s user software-factory -- "%APPDATA%\npm\software-factory.cmd" mcp
+```
+
+Validar:
+
+```bash
+codex mcp get software-factory
+claude mcp get software-factory
+```
+
+Depois disso, o `software-factory` fica disponível como servidor MCP global nas duas CLIs.
 
 ## Fluxo básico
 
