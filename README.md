@@ -238,15 +238,24 @@ software-factory run --name onboarding --brief "Executar fluxo completo" --provi
 software-factory create-tasks --name onboarding --brief "Quebrar onboarding em tarefas" --provider codex --skills "task-planning,acceptance-gate"
 ```
 
-## Console REPL
+## Console TUI
 
-Abra o modo interativo:
+Abra a interface moderna de terminal:
 
 ```bash
 software-factory console
 ```
 
-O console mantém uma sessão persistida em `.software-factory/console-session.json` com:
+O console agora abre uma TUI estilo CLI moderna com:
+
+- painel de sessão fixo
+- feed central de atividade
+- painel lateral de contexto
+- input interativo no rodapé
+- histórico por setas
+- atalhos de terminal
+
+Ele mantém uma sessão persistida em `.software-factory/console-session.json` com:
 
 - provider atual
 - model atual
@@ -276,6 +285,7 @@ Você pode digitar um brief direto para executar com o estado atual da sessão o
 /run Implementar fluxo completo do onboarding
 /review Revisar a implementação atual
 /reset
+/clear
 /exit
 ```
 
@@ -288,6 +298,13 @@ Exemplo de sessão:
 /skills set task-planning,acceptance-gate
 Implementar fluxo completo de onboarding com foco em conversão
 ```
+
+Atalhos da TUI:
+
+- `Tab`: alterna o painel direito
+- `Up/Down`: navega no histórico do input
+- `Esc`: limpa o input atual
+- `Ctrl+L`: limpa o feed visual
 
 As `skills` escolhidas por `--skills` ou `/skills set ...` entram no prompt como foco operacional da rodada, sem sobrescrever o pacote padrão do squad.
 
