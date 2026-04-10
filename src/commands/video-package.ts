@@ -1,7 +1,13 @@
 import path from "node:path";
 
-import { buildUniversalImportGuide, ensureVideoWorkflowPaths, getVideoWorkflowPaths, type VideoEditorTarget } from "../video-utils.js";
-import { analyzeVideoSource } from "../video-utils.js";
+import {
+  buildUniversalImportGuide,
+  ensureVideoWorkflowPaths,
+  getVideoWorkflowPaths,
+  isYouTubeUrl,
+  prepareVideoSource,
+  type VideoEditorTarget,
+} from "../video-utils.js";
 import { writeText } from "../fs-utils.js";
 
 export async function runVideoPackageCommand(options: {
@@ -10,11 +16,17 @@ export async function runVideoPackageCommand(options: {
   inputPath: string;
   editor: VideoEditorTarget;
 }) {
-  const absoluteInput = path.isAbsolute(options.inputPath)
+  const absoluteInput = isYouTubeUrl(options.inputPath)
+    ? options.inputPath
+    : path.isAbsolute(options.inputPath)
     ? options.inputPath
     : path.join(options.workspaceDir, options.inputPath);
-  const metadata = await analyzeVideoSource(absoluteInput);
   const workflowDir = path.join(options.workspaceDir, ".software-factory", "workflows", options.workflowName);
+  const preparedSource = await prepareVideoSource({
+    workflowDir,
+    input: absoluteInput,
+  });
+  const metadata = preparedSource.metadata;
   const videoPaths = getVideoWorkflowPaths(workflowDir, options.editor);
 
   await ensureVideoWorkflowPaths(videoPaths);
@@ -26,6 +38,7 @@ export async function runVideoPackageCommand(options: {
   return {
     workflowName: options.workflowName,
     editor: options.editor,
+    source: preparedSource.source,
     metadataPath: videoPaths.metadataPath,
     importGuidePath: videoPaths.importGuidePath,
   };

@@ -15,6 +15,9 @@ import { runProvidersCommand } from "./commands/providers.js";
 import { runSoftwareFactoryCommand } from "./commands/run.js";
 import { runVideoPackageCommand } from "./commands/video-package.js";
 import { runVideoPlanCommand } from "./commands/video-plan.js";
+import { runVideoShortsCommand } from "./commands/video-shorts.js";
+import { runYouTubeAuthCommand } from "./commands/youtube-auth.js";
+import { runYouTubeUploadCommand } from "./commands/youtube-upload.js";
 import { resolveEffort, resolveProvider } from "./config.js";
 import { listProviderNames } from "./provider-registry.js";
 import type { RunMode, RunStage } from "./types.js";
@@ -34,6 +37,9 @@ Commands:
   software-factory create-tasks --brief "..." [--name workflow]
   software-factory video-plan --name workflow --input video.mp4 --goal "..." [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
   software-factory video-package --name workflow --input video.mp4 [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}]
+  software-factory video-shorts --name workflow --input video.mp4 --goal "..." [--transcript-file legendas.vtt] [--count 5] [--min-seconds 20] [--max-seconds 45] [--materialize] [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
+  software-factory youtube-auth [--client-id xxx --client-secret yyy] [--port 8787] [--no-open] [--workspace path]
+  software-factory youtube-upload --file video.mp4 --title "..." [--description "..."] [--tags tag1,tag2] [--privacy private|unlisted|public] [--thumbnail image.png] [--playlist-id id] [--publish-at 2026-04-10T14:00:00Z]
   software-factory providers [--workspace path]
   software-factory models [--provider ${listProviderNames().join("|")}] [--workspace path]
   software-factory generate-image --prompt "..." --output path [--aspect-ratio 16:9]
@@ -271,6 +277,142 @@ async function main() {
       workflowName: values.name,
       inputPath: values.input,
       editor,
+    });
+
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "video-shorts") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        name: { type: "string" },
+        input: { type: "string" },
+        goal: { type: "string" },
+        "transcript-file": { type: "string" },
+        editor: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+        workspace: { type: "string" },
+        count: { type: "string" },
+        "min-seconds": { type: "string" },
+        "max-seconds": { type: "string" },
+        materialize: { type: "boolean" },
+        "dry-run": { type: "boolean" },
+      },
+      allowPositionals: false,
+    });
+
+    if (!values.name || !values.input || !values.goal) {
+      throw new Error("Informe --name, --input e --goal.");
+    }
+
+    const editor = (values.editor || "generic") as (typeof SUPPORTED_VIDEO_EDITORS)[number];
+    if (!SUPPORTED_VIDEO_EDITORS.includes(editor)) {
+      throw new Error(`Editor invalido: ${editor}`);
+    }
+
+    const count = Number(values.count || 5);
+    const minSeconds = Number(values["min-seconds"] || 20);
+    const maxSeconds = Number(values["max-seconds"] || 45);
+    if (!Number.isFinite(count) || count <= 0) {
+      throw new Error("Informe um --count valido.");
+    }
+    if (!Number.isFinite(minSeconds) || !Number.isFinite(maxSeconds) || minSeconds <= 0 || maxSeconds < minSeconds) {
+      throw new Error("Informe valores validos para --min-seconds e --max-seconds.");
+    }
+
+    const result = await runVideoShortsCommand({
+      workspaceDir: path.resolve(values.workspace || process.cwd()),
+      workflowName: values.name,
+      inputPath: values.input,
+      transcriptPath: values["transcript-file"],
+      goal: values.goal,
+      editor,
+      provider: resolveProvider(values.provider),
+      effort: resolveEffort(values.effort),
+      model: values.model,
+      count,
+      minDurationSeconds: minSeconds,
+      maxDurationSeconds: maxSeconds,
+      materialize: Boolean(values.materialize),
+      dryRun: Boolean(values["dry-run"]),
+    });
+
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "youtube-auth") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+        "client-id": { type: "string" },
+        "client-secret": { type: "string" },
+        port: { type: "string" },
+        "no-open": { type: "boolean" },
+      },
+      allowPositionals: false,
+    });
+
+    const result = await runYouTubeAuthCommand({
+      workspaceDir: path.resolve(values.workspace || process.cwd()),
+      clientId: values["client-id"],
+      clientSecret: values["client-secret"],
+      port: values.port ? Number(values.port) : undefined,
+      openBrowser: !Boolean(values["no-open"]),
+    });
+
+    console.log(JSON.stringify(result, null, 2));
+    return;
+  }
+
+  if (command === "youtube-upload") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+        file: { type: "string" },
+        title: { type: "string" },
+        description: { type: "string" },
+        tags: { type: "string" },
+        privacy: { type: "string" },
+        "playlist-id": { type: "string" },
+        thumbnail: { type: "string" },
+        "publish-at": { type: "string" },
+        "category-id": { type: "string" },
+        "made-for-kids": { type: "boolean" },
+        "notify-subscribers": { type: "boolean" },
+        "client-id": { type: "string" },
+        "client-secret": { type: "string" },
+        "refresh-token": { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    if (!values.file || !values.title) {
+      throw new Error("Informe --file e --title.");
+    }
+
+    const result = await runYouTubeUploadCommand({
+      workspaceDir: path.resolve(values.workspace || process.cwd()),
+      filePath: values.file,
+      title: values.title,
+      description: values.description,
+      tags: values.tags,
+      privacyStatus: values.privacy,
+      playlistId: values["playlist-id"],
+      thumbnailPath: values.thumbnail,
+      publishAt: values["publish-at"],
+      categoryId: values["category-id"],
+      madeForKids: Boolean(values["made-for-kids"]),
+      notifySubscribers: Boolean(values["notify-subscribers"]),
+      clientId: values["client-id"],
+      clientSecret: values["client-secret"],
+      refreshToken: values["refresh-token"],
     });
 
     console.log(JSON.stringify(result, null, 2));

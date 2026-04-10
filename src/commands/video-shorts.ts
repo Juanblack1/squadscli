@@ -7,26 +7,32 @@ import { resolveModelForProvider } from "../model-utils.js";
 import { createProvider } from "../provider-factory.js";
 import type { EffortLevel, ProviderName, RunRequest } from "../types.js";
 import {
-  buildUniversalImportGuide,
-  buildVideoPlanningPrompt,
-  ensureVideoWorkflowPaths,
-  getVideoWorkflowPaths,
+  buildVideoShortsPlanningPrompt,
+  ensureVideoShortsPaths,
+  getVideoShortsPaths,
   isYouTubeUrl,
   makeVideoRunId,
+  materializeVideoShorts,
+  parseVideoShortsResponse,
   prepareVideoSource,
   type VideoEditorTarget,
-  writeVideoArtifacts,
+  writeVideoShortsArtifacts,
 } from "../video-utils.js";
 
-export async function runVideoPlanCommand(options: {
+export async function runVideoShortsCommand(options: {
   workspaceDir: string;
   workflowName: string;
   inputPath: string;
+  transcriptPath?: string;
   goal: string;
   editor: VideoEditorTarget;
   provider: ProviderName;
   effort: EffortLevel;
   model?: string;
+  count: number;
+  minDurationSeconds: number;
+  maxDurationSeconds: number;
+  materialize: boolean;
   dryRun: boolean;
 }) {
   await loadEnvironment(options.workspaceDir);
@@ -36,32 +42,51 @@ export async function runVideoPlanCommand(options: {
     : path.isAbsolute(options.inputPath)
     ? options.inputPath
     : path.join(options.workspaceDir, options.inputPath);
+  const absoluteTranscript = options.transcriptPath
+    ? (path.isAbsolute(options.transcriptPath)
+        ? options.transcriptPath
+        : path.join(options.workspaceDir, options.transcriptPath))
+    : undefined;
   const stateDir = path.join(options.workspaceDir, ".software-factory");
   const workflowDir = path.join(stateDir, "workflows", options.workflowName);
+  const shortsPaths = getVideoShortsPaths(workflowDir, options.editor);
+  if (!Number.isFinite(options.count) || options.count <= 0) {
+    throw new Error("O campo 'count' precisa ser maior que zero.");
+  }
+  if (
+    !Number.isFinite(options.minDurationSeconds) ||
+    !Number.isFinite(options.maxDurationSeconds) ||
+    options.minDurationSeconds <= 0 ||
+    options.maxDurationSeconds < options.minDurationSeconds
+  ) {
+    throw new Error("Os limites de duracao dos shorts sao invalidos.");
+  }
   const preparedSource = await prepareVideoSource({
     workflowDir,
     input: absoluteInput,
+    transcriptPath: absoluteTranscript,
   });
-  const metadata = preparedSource.metadata;
-  const videoPaths = getVideoWorkflowPaths(workflowDir, options.editor);
   const model = resolveModelForProvider(options.provider, options.model);
   const runId = makeVideoRunId();
   const runDir = path.join(stateDir, "runs", runId);
   const currentDir = path.join(stateDir, "runs", "current");
-  const promptText = buildVideoPlanningPrompt({
+  const promptText = buildVideoShortsPlanningPrompt({
     goal: options.goal,
     editor: options.editor,
-    metadata,
+    metadata: preparedSource.metadata,
     source: preparedSource.source,
+    count: options.count,
+    minDurationSeconds: options.minDurationSeconds,
+    maxDurationSeconds: options.maxDurationSeconds,
   });
   const promptBundle = {
     system:
-      "You are the Software Factory video planning specialist. Build an edit plan that can be executed in any modern video editor and materialized with ffmpeg when possible.",
+      "You are the Software Factory short-video specialist. Use the transcript and metadata to identify high-signal clips that can stand alone as short-form videos.",
     user: promptText,
   };
   const promptMarkdown = `# System\n\n${promptBundle.system}\n\n# User\n\n${promptBundle.user}\n`;
 
-  await ensureVideoWorkflowPaths(videoPaths);
+  await ensureVideoShortsPaths(shortsPaths);
   await ensureDir(runDir);
   await ensureDir(currentDir);
   await writeText(path.join(runDir, "prompt.md"), promptMarkdown);
@@ -74,11 +99,10 @@ export async function runVideoPlanCommand(options: {
       editor: options.editor,
       provider: options.provider,
       model: model || null,
-      metadata,
+      metadata: preparedSource.metadata,
       source: preparedSource.source,
       prompt: promptText,
-      importGuide: buildUniversalImportGuide({ editor: options.editor, metadata }),
-      paths: videoPaths,
+      paths: shortsPaths,
     };
   }
 
@@ -103,13 +127,22 @@ export async function runVideoPlanCommand(options: {
   await writeText(path.join(currentDir, "response.md"), `${result.text.trim()}\n`);
   await fs.writeFile(path.join(runDir, "response.json"), JSON.stringify(result.raw ?? null, null, 2), "utf8");
 
-  await writeVideoArtifacts({
-    paths: videoPaths,
+  const manifest = parseVideoShortsResponse({
+    responseText: result.text,
+    goal: options.goal,
     editor: options.editor,
-    metadata,
-    planText: result.text,
-    workflowName: options.workflowName,
+    source: preparedSource,
+    count: options.count,
   });
+
+  await writeVideoShortsArtifacts({
+    paths: shortsPaths,
+    manifest,
+  });
+
+  const renderedFiles = options.materialize
+    ? await materializeVideoShorts(manifest, shortsPaths.outputDir)
+    : [];
 
   return {
     runId,
@@ -117,10 +150,11 @@ export async function runVideoPlanCommand(options: {
     editor: options.editor,
     provider: options.provider,
     model: model || null,
-    metadataPath: videoPaths.metadataPath,
-    planPath: videoPaths.planPath,
-    importGuidePath: videoPaths.importGuidePath,
-    ffmpegTemplatePath: videoPaths.ffmpegTemplatePath,
-    assetChecklistPath: videoPaths.assetChecklistPath,
+    source: preparedSource.source,
+    manifestPath: shortsPaths.manifestPath,
+    planPath: shortsPaths.planPath,
+    renderScriptPath: shortsPaths.renderScriptPath,
+    outputDir: shortsPaths.outputDir,
+    renderedFiles,
   };
 }

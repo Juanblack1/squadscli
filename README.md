@@ -52,6 +52,8 @@ Endpoints atuais:
 - `POST /retrieval/dry-run`
 - `POST /video/plan/dry-run`
 - `POST /video/package`
+- `POST /video/shorts/dry-run`
+- `POST /video/shorts`
 
 ### 3. MCP
 
@@ -70,6 +72,8 @@ Tools atuais:
 - `software_factory.retrieval_dry`
 - `software_factory.video_plan_dry`
 - `software_factory.video_package`
+- `software_factory.video_shorts_dry`
+- `software_factory.video_shorts`
 
 ### 4. Web
 
@@ -192,6 +196,11 @@ OPENAI_COMPATIBLE_MODEL=
 GEMINI_API_KEY=
 GEMINI_IMAGE_MODEL=imagen-4.0-generate-001
 
+YOUTUBE_CLIENT_ID=
+YOUTUBE_CLIENT_SECRET=
+YOUTUBE_REFRESH_TOKEN=
+YOUTUBE_OAUTH_PORT=8787
+
 OPENCODE_COMMAND_TEMPLATE=opencode run "Execute the attached software-factory prompt file end-to-end. Ask concise questions if blocking ambiguity remains." --dir "{workspace}" --file "{promptFile}"
 OPENCODE_MODEL=
 
@@ -279,6 +288,12 @@ Planejar edição de vídeo para qualquer editor:
 software-factory video-plan --name reels-edit --input ./video.mp4 --goal "Criar um reels com cortes rápidos, legenda e foco no gancho inicial" --editor generic --provider codex --model gpt-5.4 --effort lite
 ```
 
+Tambem aceita URL do YouTube como fonte. O CLI usa `yt-dlp` para baixar o video e reaproveitar legendas quando houver:
+
+```bash
+software-factory video-plan --name youtube-reels --input "https://www.youtube.com/watch?v=VIDEO_ID" --goal "Planejar cortes para conteudo curto com foco em retencao" --editor capcut --provider codex --model gpt-5.4 --effort lite
+```
+
 Gerar pacote para editor:
 
 ```bash
@@ -286,6 +301,48 @@ software-factory video-package --name reels-edit --input ./video.mp4 --editor pr
 software-factory video-package --name reels-edit --input ./video.mp4 --editor davinci
 software-factory video-package --name reels-edit --input ./video.mp4 --editor capcut
 ```
+
+Gerar highlights e transformar em shorts com manifesto + script `ffmpeg`:
+
+```bash
+software-factory video-shorts --name youtube-shorts --input "https://www.youtube.com/watch?v=VIDEO_ID" --goal "Separar os melhores momentos em shorts independentes" --count 5 --min-seconds 20 --max-seconds 45 --editor generic --provider codex --model gpt-5.4
+```
+
+Para renderizar automaticamente os cortes base com `ffmpeg`, adicione `--materialize`:
+
+```bash
+software-factory video-shorts --name youtube-shorts --input "https://www.youtube.com/watch?v=VIDEO_ID" --goal "Separar os melhores momentos em shorts independentes" --count 5 --materialize --editor generic --provider codex --model gpt-5.4
+```
+
+Se o video for local e voce ja tiver transcript/legenda, informe `--transcript-file` (`.txt`, `.srt` ou `.vtt`) para a IA localizar os highlights com mais precisao.
+
+### Conectar e publicar no YouTube
+
+Primeiro conecte a conta com OAuth 2.0. O CLI abre o navegador, recebe o callback local e salva as credenciais em `.software-factory/youtube/`.
+
+```bash
+software-factory youtube-auth --client-id SEU_CLIENT_ID --client-secret SEU_CLIENT_SECRET
+```
+
+Depois publique qualquer video finalizado:
+
+```bash
+software-factory youtube-upload --file ./.software-factory/workflows/youtube-shorts/video/shorts/generic/rendered/01-gancho-inicial.mp4 --title "Meu short" --description "Descricao do video" --tags shorts,youtube,clips --privacy unlisted
+```
+
+Com thumbnail, playlist e agendamento:
+
+```bash
+software-factory youtube-upload --file ./dist/short.mp4 --title "Meu short" --description "Descricao do video" --thumbnail ./thumb.png --playlist-id PLAYLIST_ID --privacy private --publish-at 2026-04-12T15:00:00Z
+```
+
+Notas:
+
+- `youtube-auth` tambem aceita `YOUTUBE_CLIENT_ID` e `YOUTUBE_CLIENT_SECRET` via `.env`
+- `youtube-upload` reutiliza o refresh token salvo localmente ou `YOUTUBE_REFRESH_TOKEN`
+- para playlist e operacoes mais amplas, o CLI pede os escopos `youtube.upload` e `youtube`
+- para baixar videos do YouTube continua sendo necessario ter `yt-dlp` no `PATH`
+- para renderizar shorts automaticamente continua sendo necessario ter `ffmpeg` no `PATH`
 
 Editores suportados:
 

@@ -7,6 +7,7 @@ import { runProvidersCommand } from "../../../src/commands/providers.js";
 import { runSoftwareFactoryCommand } from "../../../src/commands/run.js";
 import { runVideoPackageCommand } from "../../../src/commands/video-package.js";
 import { runVideoPlanCommand } from "../../../src/commands/video-plan.js";
+import { runVideoShortsCommand } from "../../../src/commands/video-shorts.js";
 import { retrieveStageContext } from "../../../packages/retrieval/src/index.js";
 import { getStageSquadPacket } from "../../../packages/squad-runtime/src/index.js";
 import { loadWorkflowArtifactSnapshot } from "../../../src/workflow-context.js";
@@ -128,6 +129,51 @@ const TOOLS: ToolDefinition[] = [
         input: { type: "string" },
         editor: { type: "string" },
         workspaceDir: { type: "string" },
+      },
+    },
+  },
+  {
+    name: "software_factory.video_shorts_dry",
+    description: "Gera um dry-run de shorts a partir de highlights do video, incluindo suporte a URL do YouTube.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "input", "goal"],
+      properties: {
+        name: { type: "string" },
+        input: { type: "string" },
+        goal: { type: "string" },
+        transcriptFile: { type: "string" },
+        editor: { type: "string" },
+        workspaceDir: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+        count: { type: "number" },
+        minSeconds: { type: "number" },
+        maxSeconds: { type: "number" },
+      },
+    },
+  },
+  {
+    name: "software_factory.video_shorts",
+    description: "Gera manifesto de shorts e opcionalmente renderiza cortes base com ffmpeg.",
+    inputSchema: {
+      type: "object",
+      required: ["name", "input", "goal"],
+      properties: {
+        name: { type: "string" },
+        input: { type: "string" },
+        goal: { type: "string" },
+        transcriptFile: { type: "string" },
+        editor: { type: "string" },
+        workspaceDir: { type: "string" },
+        provider: { type: "string" },
+        model: { type: "string" },
+        effort: { type: "string" },
+        count: { type: "number" },
+        minSeconds: { type: "number" },
+        maxSeconds: { type: "number" },
+        materialize: { type: "boolean" },
       },
     },
   },
@@ -271,6 +317,50 @@ async function callTool(name: string, args: JsonObject) {
       workflowName: args.name,
       inputPath: args.input,
       editor: toEditor(args.editor),
+    });
+  }
+
+  if (name === "software_factory.video_shorts_dry") {
+    if (typeof args.name !== "string" || typeof args.input !== "string" || typeof args.goal !== "string") {
+      throw new Error("Campos 'name', 'input' e 'goal' sao obrigatorios.");
+    }
+    return await runVideoShortsCommand({
+      workspaceDir: resolveWorkspaceDir(args.workspaceDir),
+      workflowName: args.name,
+      inputPath: args.input,
+      transcriptPath: typeof args.transcriptFile === "string" ? args.transcriptFile : undefined,
+      goal: args.goal,
+      editor: toEditor(args.editor),
+      provider: resolveProvider(typeof args.provider === "string" ? args.provider : undefined),
+      effort: resolveEffort(typeof args.effort === "string" ? args.effort : undefined),
+      model: typeof args.model === "string" ? args.model : undefined,
+      count: typeof args.count === "number" ? args.count : Number(args.count || 5),
+      minDurationSeconds: typeof args.minSeconds === "number" ? args.minSeconds : Number(args.minSeconds || 20),
+      maxDurationSeconds: typeof args.maxSeconds === "number" ? args.maxSeconds : Number(args.maxSeconds || 45),
+      materialize: false,
+      dryRun: true,
+    });
+  }
+
+  if (name === "software_factory.video_shorts") {
+    if (typeof args.name !== "string" || typeof args.input !== "string" || typeof args.goal !== "string") {
+      throw new Error("Campos 'name', 'input' e 'goal' sao obrigatorios.");
+    }
+    return await runVideoShortsCommand({
+      workspaceDir: resolveWorkspaceDir(args.workspaceDir),
+      workflowName: args.name,
+      inputPath: args.input,
+      transcriptPath: typeof args.transcriptFile === "string" ? args.transcriptFile : undefined,
+      goal: args.goal,
+      editor: toEditor(args.editor),
+      provider: resolveProvider(typeof args.provider === "string" ? args.provider : undefined),
+      effort: resolveEffort(typeof args.effort === "string" ? args.effort : undefined),
+      model: typeof args.model === "string" ? args.model : undefined,
+      count: typeof args.count === "number" ? args.count : Number(args.count || 5),
+      minDurationSeconds: typeof args.minSeconds === "number" ? args.minSeconds : Number(args.minSeconds || 20),
+      maxDurationSeconds: typeof args.maxSeconds === "number" ? args.maxSeconds : Number(args.maxSeconds || 45),
+      materialize: Boolean(args.materialize),
+      dryRun: false,
     });
   }
 

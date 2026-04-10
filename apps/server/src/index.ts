@@ -11,6 +11,7 @@ import { retrieveStageContext } from "../../../packages/retrieval/src/index.js";
 import { getStageSquadPacket } from "../../../packages/squad-runtime/src/index.js";
 import { runVideoPackageCommand } from "../../../src/commands/video-package.js";
 import { runVideoPlanCommand } from "../../../src/commands/video-plan.js";
+import { runVideoShortsCommand } from "../../../src/commands/video-shorts.js";
 import type { ArtifactRef, RunMode, RunStage, WorkflowState } from "../../../src/types.js";
 import { SUPPORTED_VIDEO_EDITORS } from "../../../src/video-utils.js";
 import { loadWorkflowArtifactSnapshot } from "../../../src/workflow-context.js";
@@ -336,6 +337,58 @@ async function route(request: http.IncomingMessage, response: http.ServerRespons
         workflowName: body.name,
         inputPath: body.input,
         editor: toVideoEditor(body.editor),
+      });
+
+      return json(response, 200, result as JsonRecord);
+    }
+
+    if (method === "POST" && url.pathname === "/video/shorts/dry-run") {
+      const body = await readJsonBody(request);
+      if (typeof body.name !== "string" || typeof body.input !== "string" || typeof body.goal !== "string") {
+        throw new Error("Campos 'name', 'input' e 'goal' sao obrigatorios.");
+      }
+
+      const result = await runVideoShortsCommand({
+        workspaceDir: resolveWorkspaceDir(body.workspaceDir),
+        workflowName: body.name,
+        inputPath: body.input,
+        transcriptPath: typeof body.transcriptFile === "string" ? body.transcriptFile : undefined,
+        goal: body.goal,
+        editor: toVideoEditor(body.editor),
+        provider: resolveProvider(typeof body.provider === "string" ? body.provider : undefined),
+        effort: resolveEffort(typeof body.effort === "string" ? body.effort : undefined),
+        model: typeof body.model === "string" ? body.model : undefined,
+        count: typeof body.count === "number" ? body.count : Number(body.count || 5),
+        minDurationSeconds: typeof body.minSeconds === "number" ? body.minSeconds : Number(body.minSeconds || 20),
+        maxDurationSeconds: typeof body.maxSeconds === "number" ? body.maxSeconds : Number(body.maxSeconds || 45),
+        materialize: false,
+        dryRun: true,
+      });
+
+      return json(response, 200, result as JsonRecord);
+    }
+
+    if (method === "POST" && url.pathname === "/video/shorts") {
+      const body = await readJsonBody(request);
+      if (typeof body.name !== "string" || typeof body.input !== "string" || typeof body.goal !== "string") {
+        throw new Error("Campos 'name', 'input' e 'goal' sao obrigatorios.");
+      }
+
+      const result = await runVideoShortsCommand({
+        workspaceDir: resolveWorkspaceDir(body.workspaceDir),
+        workflowName: body.name,
+        inputPath: body.input,
+        transcriptPath: typeof body.transcriptFile === "string" ? body.transcriptFile : undefined,
+        goal: body.goal,
+        editor: toVideoEditor(body.editor),
+        provider: resolveProvider(typeof body.provider === "string" ? body.provider : undefined),
+        effort: resolveEffort(typeof body.effort === "string" ? body.effort : undefined),
+        model: typeof body.model === "string" ? body.model : undefined,
+        count: typeof body.count === "number" ? body.count : Number(body.count || 5),
+        minDurationSeconds: typeof body.minSeconds === "number" ? body.minSeconds : Number(body.minSeconds || 20),
+        maxDurationSeconds: typeof body.maxSeconds === "number" ? body.maxSeconds : Number(body.maxSeconds || 45),
+        materialize: Boolean(body.materialize),
+        dryRun: false,
       });
 
       return json(response, 200, result as JsonRecord);
