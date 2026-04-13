@@ -1,6 +1,6 @@
 {
   "name": "@juanblack1/software-factory-cli",
-  "version": "0.7.3",
+  "version": "0.8.0",
   "description": "Orquestrador CLI do Software Factory 2.0 com squad runtime, server HTTP, MCP, cockpit web inicial, retrieval seletivo, multiprovider e workflow universal para software e video.",
   "type": "module",
   "bin": {
@@ -23,6 +23,8 @@
     "build:server": "node -e \"require('fs').rmSync('apps/server/dist',{recursive:true,force:true})\" && npx tsc -p apps/server/tsconfig.json",
     "build:mcp": "node -e \"require('fs').rmSync('apps/mcp/dist',{recursive:true,force:true})\" && npx tsc -p apps/mcp/tsconfig.json",
     "build:all": "npm run build && npm run build:server && npm run build:mcp",
+    "desktop:start": "electron apps/desktop/main.mjs",
+    "desktop:dist": "npm run build:all && electron-builder --config apps/desktop/electron-builder.json",
     "dev": "tsx src/index.ts",
     "prepack": "npm run build:all",
     "test": "vitest run",
@@ -70,6 +72,8 @@
   "devDependencies": {
     "@types/node": "^24.6.0",
     "@types/react": "^19.2.14",
+    "electron": "^41.2.0",
+    "electron-builder": "^26.8.1",
     "tsx": "^4.21.0",
     "typescript": "^5.9.3",
     "vitest": "^4.1.1"

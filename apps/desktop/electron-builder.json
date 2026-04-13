@@ -1,0 +1,30 @@
+{
+  "appId": "com.juanblack1.softwarefactory.desktop",
+  "productName": "Software Factory Desktop",
+  "directories": {
+    "output": "release-assets/desktop"
+  },
+  "files": [
+    "apps/desktop/**/*",
+    "dist/**/*",
+    "package.json",
+    "node_modules/**/*",
+    "docs/**/*",
+    "skills/**/*",
+    ".env.example"
+  ],
+  "extraMetadata": {
+    "main": "apps/desktop/main.mjs"
+  },
+  "win": {
+    "signAndEditExecutable": false,
+    "target": [
+      {
+        "target": "portable",
+        "arch": [
+          "x64"
+        ]
+      }
+    ]
+  }
+}

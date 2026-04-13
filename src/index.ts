@@ -31,6 +31,7 @@ function printHelp() {
 Commands:
   software-factory init [--target path] [--force]
   software-factory console [--workspace path]
+  software-factory desktop [--workspace path]
   software-factory serve
   software-factory mcp
   software-factory web
@@ -76,6 +77,44 @@ async function spawnNodeEntrypoint(relativePath: string) {
     child.on("close", (code) => {
       if (code && code !== 0) {
         reject(new Error(`Entrypoint saiu com codigo ${code}.`));
+        return;
+      }
+      resolve();
+    });
+  });
+}
+
+async function spawnDesktopEntrypoint(workspaceDir?: string) {
+  const root = resolvePackageRoot();
+  const electronBinary = process.platform === "win32"
+    ? path.join(root, "node_modules", "electron", "dist", "electron.exe")
+    : path.join(root, "node_modules", "electron", "dist", "electron");
+  const entrypoint = path.join(root, "apps", "desktop", "main.mjs");
+
+  try {
+    await fs.access(electronBinary);
+    await fs.access(entrypoint);
+  } catch {
+    throw new Error("Desktop launcher nao encontrado. Instale as dependencias do desktop e rode o pacote completo.");
+  }
+
+  const args = [entrypoint];
+  if (workspaceDir) {
+    args.push("--workspace", workspaceDir);
+  }
+
+  const child = spawn(electronBinary, args, {
+    cwd: root,
+    stdio: "inherit",
+    env: process.env,
+    shell: false,
+  });
+
+  await new Promise<void>((resolve, reject) => {
+    child.on("error", reject);
+    child.on("close", (code) => {
+      if (code && code !== 0) {
+        reject(new Error(`Desktop launcher saiu com codigo ${code}.`));
         return;
       }
       resolve();
@@ -129,6 +168,19 @@ async function main() {
     });
 
     await runConsoleCommand(path.resolve(values.workspace || process.cwd()));
+    return;
+  }
+
+  if (command === "desktop") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    await spawnDesktopEntrypoint(values.workspace ? path.resolve(values.workspace) : undefined);
     return;
   }
 

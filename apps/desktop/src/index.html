@@ -1,0 +1,102 @@
+<!doctype html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Software Factory Desktop</title>
+    <link rel="stylesheet" href="./styles.css" />
+  </head>
+  <body>
+    <div class="desktop-shell">
+      <aside class="sidebar">
+        <section class="panel hero-panel">
+          <p class="eyebrow">software-factory</p>
+          <h1>Desktop Runner</h1>
+          <p class="lede">Escolha a pasta do projeto, configure provider e rode o motor do software-factory dentro de uma interface desktop.</p>
+        </section>
+
+        <section class="panel workspace-panel">
+          <div class="section-header">
+            <span class="pill">Workspace</span>
+            <button id="choose-folder" class="ghost tiny">Trocar</button>
+          </div>
+          <p id="workspace-path" class="workspace-path">Carregando...</p>
+          <div class="grid two-up compact">
+            <label>
+              <span>Provider</span>
+              <select id="provider-select"></select>
+            </label>
+            <label>
+              <span>Model</span>
+              <select id="model-select"></select>
+            </label>
+            <label>
+              <span>Stage</span>
+              <select id="stage-select">
+                <option value="full-run">full-run</option>
+                <option value="prd">prd</option>
+                <option value="techspec">techspec</option>
+                <option value="tasks">tasks</option>
+                <option value="review">review</option>
+                <option value="autonomy">autonomy</option>
+              </select>
+            </label>
+            <label>
+              <span>Effort</span>
+              <select id="effort-select">
+                <option value="lite">lite</option>
+                <option value="balanced">balanced</option>
+                <option value="deep">deep</option>
+              </select>
+            </label>
+          </div>
+
+          <label class="workflow-field">
+            <span>Workflow</span>
+            <input id="workflow-input" type="text" placeholder="onboarding ou deixe vazio" />
+          </label>
+
+          <label class="checkbox-row">
+            <input id="dry-run-input" type="checkbox" />
+            <span>Executar em dry-run</span>
+          </label>
+
+          <div class="button-row">
+            <button id="refresh-workspace" class="ghost">Atualizar</button>
+            <button id="run-doctor" class="secondary">Doctor</button>
+          </div>
+        </section>
+
+        <section class="panel recent-panel">
+          <div class="section-header">
+            <span class="pill subtle">Runs recentes</span>
+          </div>
+          <div id="recent-runs" class="list-block"></div>
+        </section>
+      </aside>
+
+      <main class="content">
+        <section class="panel output-panel">
+          <div class="section-header">
+            <div>
+              <p class="eyebrow dim">activity feed</p>
+              <h2>Resultado da execução</h2>
+            </div>
+            <span id="status-badge" class="status-badge idle">idle</span>
+          </div>
+          <div id="feed" class="feed"></div>
+        </section>
+
+        <section class="panel composer-panel">
+          <div class="section-header">
+            <span class="pill">Brief</span>
+            <button id="run-button" class="primary">Rodar</button>
+          </div>
+          <textarea id="brief-input" placeholder="Descreva o que voce quer rodar neste workspace..."></textarea>
+        </section>
+      </main>
+    </div>
+
+    <script type="module" src="./app.js"></script>
+  </body>
+</html>

@@ -30,6 +30,7 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 - `software-factory`
 - alias compatível com ambientes agent-native: `cli-anything-software-factory`
 - modo REPL estilo terminal com estado de sessão: `software-factory console`
+- launcher desktop com terminal embutido: `software-factory desktop`
 
 ## Instalação simples
 
@@ -82,6 +83,27 @@ Ao abrir o executavel, ele:
 - abre o `software-factory console` no fim
 
 O executavel da release e gerado a partir do instalador PowerShell com `ps2exe`.
+
+### Desktop app por executavel
+
+Baixe o launcher desktop na release mais recente:
+
+```text
+Software Factory Desktop <versao>.exe
+```
+
+O launcher desktop oferece:
+
+- seletor visual de pasta
+- terminal embutido com `software-factory console`
+- interface moderna estilo app desktop
+- workspace persistido entre aberturas
+
+Tambem pode ser aberto pela CLI:
+
+```bash
+software-factory desktop --workspace .
+```
 
 ### 2. Server HTTP
 
