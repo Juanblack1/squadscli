@@ -31,6 +31,34 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 - alias compatível com ambientes agent-native: `cli-anything-software-factory`
 - modo REPL estilo terminal com estado de sessão: `software-factory console`
 
+## Instalação simples
+
+### Windows em uma linha
+
+Instala e já abre o console no diretório atual:
+
+```powershell
+$env:GITHUB_PACKAGES_TOKEN="SEU_TOKEN"; irm https://raw.githubusercontent.com/Juanblack1/software-factory-cli/master/scripts/install-windows.ps1 | iex
+```
+
+Instala sem abrir automaticamente:
+
+```powershell
+$env:GITHUB_PACKAGES_TOKEN="SEU_TOKEN"; $tmp="$env:TEMP\sf-install.ps1"; iwr https://raw.githubusercontent.com/Juanblack1/software-factory-cli/master/scripts/install-windows.ps1 -OutFile $tmp; & $tmp -NoLaunch
+```
+
+Se preferir baixar e executar um arquivo local, use:
+
+```powershell
+scripts\install-windows.cmd
+```
+
+Requisitos para o instalador:
+
+- Windows PowerShell
+- Node.js 20+
+- `GITHUB_PACKAGES_TOKEN` com acesso ao pacote
+
 ### 2. Server HTTP
 
 Suba com:
