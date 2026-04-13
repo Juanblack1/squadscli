@@ -1,6 +1,6 @@
 param(
   [string]$Token = $env:GITHUB_PACKAGES_TOKEN,
-  [string]$Version = "0.9.0",
+  [string]$Version = "0.9.1",
   [string]$Workspace = (Get-Location).Path,
   [switch]$NoLaunch
 )

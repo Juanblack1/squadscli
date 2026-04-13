@@ -1,6 +1,6 @@
 {
   "name": "@juanblack1/software-factory-cli",
-  "version": "0.9.0",
+  "version": "0.9.1",
   "description": "Orquestrador CLI do Software Factory 2.0 com squad runtime, server HTTP, MCP, cockpit web inicial, retrieval seletivo, multiprovider e workflow universal para software e video.",
   "type": "module",
   "bin": {

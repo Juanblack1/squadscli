@@ -23,22 +23,17 @@ const statusBadge = document.getElementById("status-badge");
 const viewContent = document.getElementById("view-content");
 const viewTitle = document.getElementById("view-title");
 const viewKicker = document.getElementById("view-kicker");
-const navButtons = Array.from(document.querySelectorAll(".rail-link"));
+const threadTitle = document.getElementById("thread-title");
+const navButtons = Array.from(document.querySelectorAll(".nav-pill"));
+const sidebarSessions = document.getElementById("sidebar-sessions");
+const inspectorProviders = document.getElementById("inspector-providers");
+const inspectorWorkflows = document.getElementById("inspector-workflows");
+const inspectorMemory = document.getElementById("inspector-memory");
 
 let snapshot = null;
 let currentView = "home";
 let sessionHistory = loadSessionHistory();
-
-function setText(node, value) {
-  node.textContent = value || "";
-}
-
-function createTextNode(tag, className, text) {
-  const node = document.createElement(tag);
-  if (className) node.className = className;
-  node.textContent = text;
-  return node;
-}
+const desktopApi = window.softwareFactoryDesktop;
 
 function loadSessionHistory() {
   try {
@@ -50,33 +45,37 @@ function loadSessionHistory() {
 }
 
 function persistSessionHistory() {
-  localStorage.setItem(storageKey, JSON.stringify(sessionHistory.slice(0, 20)));
+  localStorage.setItem(storageKey, JSON.stringify(sessionHistory.slice(0, 24)));
 }
 
 function recordSession(entry) {
-  sessionHistory = [entry, ...sessionHistory.filter((item) => item.id !== entry.id)].slice(0, 20);
+  sessionHistory = [entry, ...sessionHistory.filter((item) => item.id !== entry.id)].slice(0, 24);
   persistSessionHistory();
-  renderView();
+  if (snapshot) {
+    renderSidebar();
+    renderInspector();
+    renderView();
+  }
+}
+
+function createElement(tag, className, text) {
+  const element = document.createElement(tag);
+  if (className) element.className = className;
+  if (typeof text === "string") element.textContent = text;
+  return element;
 }
 
 function appendFeed(kind, title, body) {
-  const article = document.createElement("article");
-  article.className = `feed-card ${kind}`;
-
-  const heading = document.createElement("h3");
-  heading.textContent = title;
-  article.appendChild(heading);
-
-  const pre = document.createElement("pre");
-  pre.textContent = typeof body === "string" ? body : JSON.stringify(body, null, 2);
+  const article = createElement("article", `feed-card ${kind}`);
+  article.appendChild(createElement("h3", "", title));
+  const pre = createElement("pre", "", typeof body === "string" ? body : JSON.stringify(body, null, 2));
   article.appendChild(pre);
-
   feed.prepend(article);
 }
 
 function setStatus(label, kind) {
   statusBadge.textContent = label;
-  statusBadge.className = `status-badge ${kind}`;
+  statusBadge.className = `meta-chip ${kind}`;
 }
 
 function parseSkillInput(value) {
@@ -84,6 +83,23 @@ function parseSkillInput(value) {
     .split(",")
     .map((item) => item.trim())
     .filter(Boolean);
+}
+
+function compactDate(value) {
+  if (!value) return "";
+  const date = new Date(value);
+  if (Number.isNaN(date.getTime())) return value;
+  return date.toLocaleString("pt-BR", { day: "2-digit", month: "2-digit", hour: "2-digit", minute: "2-digit" });
+}
+
+function summarizeExecution(execution) {
+  if (!execution) return "sem plano persistido";
+  const handoffs = execution.steps.filter((step) => step.handoffTo).length;
+  return `${execution.status} · ${execution.steps.length} steps · ${handoffs} handoffs`;
+}
+
+function summarizeNextAction(execution, fallback = "sem proximo passo") {
+  return execution?.nextAction || fallback;
 }
 
 function getComposerState() {
@@ -106,26 +122,33 @@ async function persistComposerState() {
   }
 }
 
-function createCard(title, subtitle, meta, action) {
-  const card = document.createElement("button");
-  card.type = "button";
-  card.className = "content-card";
-  card.appendChild(createTextNode("strong", "", title));
-  card.appendChild(createTextNode("span", "", subtitle || ""));
-  card.appendChild(createTextNode("small", "", meta || ""));
-  if (action) {
-    card.addEventListener("click", action);
-  }
-  return card;
+function createStreamCard(title, subtitle, meta, action) {
+  const button = createElement("button", "stream-card");
+  button.type = "button";
+  button.appendChild(createElement("strong", "", title));
+  button.appendChild(createElement("span", "", subtitle || ""));
+  button.appendChild(createElement("small", "", meta || ""));
+  if (action) button.addEventListener("click", action);
+  return button;
 }
 
-function summarizeExecution(execution) {
-  if (!execution) {
-    return "sem plano persistido";
-  }
+function createSidebarItem(title, meta, action, active = false) {
+  const button = createElement("button", `sidebar-item${active ? " active" : ""}`);
+  button.type = "button";
+  button.appendChild(createElement("strong", "", title));
+  button.appendChild(createElement("span", "", meta));
+  if (action) button.addEventListener("click", action);
+  return button;
+}
 
-  const handoffs = execution.steps.filter((step) => step.handoffTo).length;
-  return `${execution.status} · ${execution.steps.length} steps · ${handoffs} handoffs`;
+function createInspectorCard(title, subtitle, meta, action) {
+  const card = createElement("button", "inspector-card");
+  card.type = "button";
+  card.appendChild(createElement("strong", "", title));
+  card.appendChild(createElement("span", "", subtitle || ""));
+  card.appendChild(createElement("small", "", meta || ""));
+  if (action) card.addEventListener("click", action);
+  return card;
 }
 
 function setComposerFromRun(run) {
@@ -137,38 +160,42 @@ function setComposerFromRun(run) {
   workflowInput.value = run.workflowName || "";
   skillsInput.value = Array.isArray(run.focusSkills) ? run.focusSkills.join(", ") : "";
   dryRunInput.checked = Boolean(run.dryRun);
-  if (typeof run.brief === "string") {
-    briefInput.value = run.brief;
-  }
+  briefInput.value = typeof run.brief === "string" ? run.brief : "";
   void persistComposerState();
 }
 
-function renderHomeView() {
-  const wrapper = document.createElement("div");
-  wrapper.className = "content-stack";
+function renderSidebar() {
+  sidebarSessions.innerHTML = "";
 
-  const hero = document.createElement("section");
-  hero.className = "subpanel";
-  hero.appendChild(createTextNode("p", "subheading", "command surface"));
-  hero.appendChild(createTextNode("h3", "", "Workspace pronto para rodar"));
-  hero.appendChild(
-    createTextNode(
-      "p",
-      "subcopy",
-      "Escolha um provider, selecione um workflow existente ou comece um novo fluxo diretamente pelo composer.",
-    ),
-  );
-  wrapper.appendChild(hero);
+  if (!sessionHistory.length) {
+    sidebarSessions.appendChild(createElement("div", "sidebar-empty", "Nenhuma sessão local ainda."));
+    return;
+  }
 
-  const grid = document.createElement("div");
-  grid.className = "card-grid three";
+  sessionHistory.slice(0, 8).forEach((entry) => {
+    sidebarSessions.appendChild(
+      createSidebarItem(
+        entry.workflowName || "nova sessão",
+        `${entry.provider} · ${entry.stage} · ${compactDate(entry.timestamp)}`,
+        () => {
+          setComposerFromRun(entry);
+          appendFeed("system", "Sessão restaurada", entry.workflowName || "nova sessão");
+        },
+      ),
+    );
+  });
+}
 
-  const readyProviders = snapshot.providers.filter((provider) => provider.ready);
-  readyProviders.slice(0, 3).forEach((provider) => {
-    grid.appendChild(
-      createCard(
+function renderInspector() {
+  inspectorProviders.innerHTML = "";
+  inspectorWorkflows.innerHTML = "";
+  inspectorMemory.innerHTML = "";
+
+  snapshot.providers.slice(0, 4).forEach((provider) => {
+    inspectorProviders.appendChild(
+      createInspectorCard(
         provider.provider,
-        provider.description,
+        provider.ready ? "ready" : "not ready",
         provider.activeModel || provider.kind,
         () => {
           providerSelect.value = provider.provider;
@@ -179,60 +206,117 @@ function renderHomeView() {
     );
   });
 
-  if (grid.children.length === 0) {
-    grid.appendChild(createTextNode("div", "empty-card", "Nenhum provider pronto neste workspace."));
-  }
-
-  wrapper.appendChild(grid);
-
-  const flows = document.createElement("div");
-  flows.className = "subpanel";
-  const flowsHeader = document.createElement("div");
-  flowsHeader.className = "subpanel-header";
-  flowsHeader.appendChild(createTextNode("h3", "", "Workflows recentes"));
-  flowsHeader.appendChild(createTextNode("span", "", "atalhos"));
-  flows.appendChild(flowsHeader);
-
-  const list = document.createElement("div");
-  list.className = "card-grid two";
-  const workflowItems = snapshot.workflows.slice(0, 4);
-
-  if (workflowItems.length === 0) {
-    list.appendChild(createTextNode("div", "empty-card", "Nenhum workflow salvo ainda."));
+  if (!snapshot.workflows.length) {
+    inspectorWorkflows.appendChild(createElement("div", "inspector-empty", "Nenhum workflow ainda."));
   } else {
-    workflowItems.forEach((workflow) => {
-      list.appendChild(
-        createCard(
+    snapshot.workflows.slice(0, 5).forEach((workflow) => {
+      inspectorWorkflows.appendChild(
+        createInspectorCard(
           workflow.workflowName,
           `stage ${workflow.currentStage}`,
-          workflow.execution?.nextAction || workflow.updatedAt,
+          summarizeNextAction(workflow.execution, compactDate(workflow.updatedAt)),
           () => {
             workflowInput.value = workflow.workflowName;
             stageSelect.value = workflow.currentStage;
-            appendFeed("system", "Workflow selecionado", workflow.workflowName);
+            appendFeed("system", "Workflow carregado", workflow.workflowName);
+            void persistComposerState();
           },
         ),
       );
     });
   }
 
-  flows.appendChild(list);
+  const memorySource = snapshot.workflows.find((workflow) => workflow.execution?.taskMemoryExcerpt || workflow.execution?.sharedMemoryExcerpt);
+  if (!memorySource) {
+    inspectorMemory.appendChild(createElement("div", "inspector-empty", "Sem memória consolidada ainda."));
+  } else {
+    inspectorMemory.appendChild(
+      createInspectorCard(
+        memorySource.workflowName,
+        summarizeExecution(memorySource.execution),
+        memorySource.execution?.taskMemoryExcerpt || memorySource.execution?.sharedMemoryExcerpt || "",
+        () => {
+          workflowInput.value = memorySource.workflowName;
+          appendFeed("system", "Memory + handoffs", memorySource.execution?.taskMemoryExcerpt || memorySource.execution?.sharedMemoryExcerpt || "");
+          void persistComposerState();
+        },
+      ),
+    );
+  }
+}
+
+function renderHomeView() {
+  const wrapper = createElement("div", "stream-stack");
+
+  const intro = createElement("section", "stream-block intro-block");
+  intro.appendChild(createElement("p", "mini-label", "workspace ready"));
+  intro.appendChild(createElement("h3", "", "Escolha um provider e rode do centro da interface"));
+  intro.appendChild(createElement("p", "block-copy", "A coluna central funciona como uma superfície única de execução. A lateral esquerda concentra histórico e a direita mostra contexto operacional e memória."));
+  wrapper.appendChild(intro);
+
+  const providers = createElement("div", "stream-grid two");
+  const readyProviders = snapshot.providers.filter((provider) => provider.ready).slice(0, 2);
+  if (!readyProviders.length) {
+    providers.appendChild(createElement("div", "stream-empty", "Nenhum provider pronto neste workspace."));
+  } else {
+    readyProviders.forEach((provider) => {
+      providers.appendChild(
+        createStreamCard(
+          provider.provider,
+          provider.description,
+          provider.activeModel || provider.kind,
+          () => {
+            providerSelect.value = provider.provider;
+            renderModels();
+            appendFeed("system", "Provider selecionado", provider.provider);
+          },
+        ),
+      );
+    });
+  }
+  wrapper.appendChild(providers);
+
+  const flows = createElement("section", "stream-block");
+  const flowsHeader = createElement("div", "section-inline");
+  flowsHeader.appendChild(createElement("h3", "", "Workflows recentes"));
+  flowsHeader.appendChild(createElement("span", "mini-note", "atalhos"));
+  flows.appendChild(flowsHeader);
+  const flowGrid = createElement("div", "stream-grid two");
+  const workflowItems = snapshot.workflows.slice(0, 4);
+  if (!workflowItems.length) {
+    flowGrid.appendChild(createElement("div", "stream-empty", "Nenhum workflow salvo ainda."));
+  } else {
+    workflowItems.forEach((workflow) => {
+      flowGrid.appendChild(
+        createStreamCard(
+          workflow.workflowName,
+          `stage ${workflow.currentStage}`,
+          `${summarizeNextAction(workflow.execution, compactDate(workflow.updatedAt))}${workflow.updatedAt ? `\n${compactDate(workflow.updatedAt)}` : ""}`,
+          () => {
+            workflowInput.value = workflow.workflowName;
+            stageSelect.value = workflow.currentStage;
+            appendFeed("system", "Workflow selecionado", workflow.workflowName);
+            void persistComposerState();
+          },
+        ),
+      );
+    });
+  }
+  flows.appendChild(flowGrid);
   wrapper.appendChild(flows);
 
   return wrapper;
 }
 
 function renderProvidersView() {
-  const grid = document.createElement("div");
-  grid.className = "card-grid three";
-
+  const grid = createElement("div", "stream-grid two");
   snapshot.providers.forEach((provider) => {
     const status = provider.ready ? "ready" : "not ready";
     grid.appendChild(
-      createCard(
+      createStreamCard(
         provider.provider,
         provider.description,
-        `${status} · ${provider.kind}`,
+        `${status} · ${provider.kind}\n${provider.activeModel || "provider-default"}`,
         () => {
           providerSelect.value = provider.provider;
           renderModels();
@@ -241,52 +325,45 @@ function renderProvidersView() {
       ),
     );
   });
-
   return grid;
 }
 
 function renderWorkflowsView() {
-  const grid = document.createElement("div");
-  grid.className = "card-grid two";
-
+  const grid = createElement("div", "stream-grid two");
   if (!snapshot.workflows.length) {
-    grid.appendChild(createTextNode("div", "empty-card", "Nenhum workflow encontrado neste workspace."));
+    grid.appendChild(createElement("div", "stream-empty", "Nenhum workflow encontrado neste workspace."));
     return grid;
   }
-
   snapshot.workflows.forEach((workflow) => {
     grid.appendChild(
-      createCard(
+      createStreamCard(
         workflow.workflowName,
         `stage ${workflow.currentStage}`,
-        workflow.execution?.nextAction || summarizeExecution(workflow.execution),
+        `${summarizeExecution(workflow.execution)}\n${summarizeNextAction(workflow.execution, "abrir workflow")}`,
         () => {
           workflowInput.value = workflow.workflowName;
           stageSelect.value = workflow.currentStage;
           appendFeed("system", "Workflow carregado", workflow.workflowName);
+          void persistComposerState();
         },
       ),
     );
   });
-
   return grid;
 }
 
 function renderRunsView() {
-  const grid = document.createElement("div");
-  grid.className = "card-grid two";
-
+  const grid = createElement("div", "stream-grid two");
   if (!snapshot.recentRuns.length) {
-    grid.appendChild(createTextNode("div", "empty-card", "Nenhum run recente neste workspace."));
+    grid.appendChild(createElement("div", "stream-empty", "Nenhum run recente neste workspace."));
     return grid;
   }
-
   snapshot.recentRuns.forEach((run) => {
     grid.appendChild(
-      createCard(
+      createStreamCard(
         run.workflowName,
         `${run.stage} · ${run.provider}`,
-        summarizeExecution(run.execution),
+        `${summarizeExecution(run.execution)}\n${compactDate(run.updatedAt)}`,
         () => {
           setComposerFromRun(run);
           appendFeed("system", "Run carregado no composer", run.runId || run.workflowName);
@@ -294,91 +371,73 @@ function renderRunsView() {
       ),
     );
   });
-
   return grid;
 }
 
 function renderMemoryView() {
-  const grid = document.createElement("div");
-  grid.className = "card-grid two";
-
+  const grid = createElement("div", "stream-grid two");
   const items = snapshot.workflows.filter((workflow) => workflow.execution?.sharedMemoryExcerpt || workflow.execution?.taskMemoryExcerpt);
   if (!items.length) {
-    grid.appendChild(createTextNode("div", "empty-card", "Nenhuma memória consolidada ainda nos workflows."));
+    grid.appendChild(createElement("div", "stream-empty", "Nenhuma memória consolidada ainda nos workflows."));
     return grid;
   }
-
   items.forEach((workflow) => {
     const excerpt = workflow.execution?.taskMemoryExcerpt || workflow.execution?.sharedMemoryExcerpt || "";
     grid.appendChild(
-      createCard(
+      createStreamCard(
         workflow.workflowName,
         workflow.execution?.nextAction || "memória do workflow",
-        excerpt,
+        `${summarizeExecution(workflow.execution)}\n${excerpt}`,
         () => {
           workflowInput.value = workflow.workflowName;
           appendFeed("system", "Memória do workflow", excerpt);
+          void persistComposerState();
         },
       ),
     );
   });
-
   return grid;
 }
 
 function renderSessionsView() {
-  const grid = document.createElement("div");
-  grid.className = "card-grid two";
-
+  const grid = createElement("div", "stream-grid two");
   if (!sessionHistory.length) {
-    grid.appendChild(createTextNode("div", "empty-card", "Nenhuma sessão local ainda. Rode algo para começar."));
+    grid.appendChild(createElement("div", "stream-empty", "Nenhuma sessão local ainda. Rode algo para começar."));
     return grid;
   }
-
   sessionHistory.forEach((entry) => {
     grid.appendChild(
-      createCard(
+      createStreamCard(
         entry.workflowName || "nova sessão",
         `${entry.stage} · ${entry.provider}`,
-        `${entry.workspace}\n${entry.timestamp}`,
+        `${entry.workspace}\n${compactDate(entry.timestamp)}`,
         () => {
-          providerSelect.value = entry.provider || snapshot.defaultProvider;
-          renderModels();
-          modelSelect.value = entry.model || "";
-          stageSelect.value = entry.stage || "full-run";
-          effortSelect.value = entry.effort || snapshot.defaultEffort;
-          workflowInput.value = entry.workflowName || "";
-          skillsInput.value = Array.isArray(entry.focusSkills) ? entry.focusSkills.join(", ") : "";
-          dryRunInput.checked = Boolean(entry.dryRun);
-          briefInput.value = entry.brief || "";
+          setComposerFromRun(entry);
           appendFeed("system", "Sessão restaurada", entry.workflowName || "nova sessão");
         },
       ),
     );
   });
-
   return grid;
 }
 
 function renderView() {
-  if (!snapshot) {
-    return;
-  }
-
+  if (!snapshot) return;
   viewContent.innerHTML = "";
 
   const views = {
-    home: { kicker: "home", title: "Visão geral", node: renderHomeView() },
-    providers: { kicker: "providers", title: "Providers disponíveis", node: renderProvidersView() },
-    workflows: { kicker: "workflows", title: "Workflows salvos", node: renderWorkflowsView() },
-    runs: { kicker: "runs", title: "Runs do workspace", node: renderRunsView() },
-    memory: { kicker: "memory", title: "Memória e handoffs", node: renderMemoryView() },
-    sessions: { kicker: "sessions", title: "Histórico local de sessões", node: renderSessionsView() },
+    home: { kicker: "home", title: "Visão geral", thread: "Workspace pronto", node: renderHomeView() },
+    providers: { kicker: "providers", title: "Providers disponíveis", thread: "Escolha o executor da rodada", node: renderProvidersView() },
+    workflows: { kicker: "workflows", title: "Workflows salvos", thread: "Reabra e continue qualquer fluxo", node: renderWorkflowsView() },
+    runs: { kicker: "runs", title: "Runs do workspace", thread: "Resultados recentes e recuperação rápida", node: renderRunsView() },
+    memory: { kicker: "memory", title: "Memória e handoffs", thread: "Estado durável e próximo passo", node: renderMemoryView() },
+    sessions: { kicker: "sessions", title: "Histórico local de sessões", thread: "Restauração do composer", node: renderSessionsView() },
   };
 
   const selected = views[currentView] || views.home;
   viewKicker.textContent = selected.kicker;
   viewTitle.textContent = selected.title;
+  threadTitle.textContent = selected.thread;
   viewContent.appendChild(selected.node);
 
   navButtons.forEach((button) => {
@@ -389,34 +448,26 @@ function renderView() {
 function renderProviders() {
   providerSelect.innerHTML = "";
   snapshot.providers.forEach((provider) => {
-    const option = document.createElement("option");
+    const option = createElement("option", "", `${provider.provider}${provider.ready ? "" : " (not ready)"}`);
     option.value = provider.provider;
-    option.textContent = `${provider.provider}${provider.ready ? "" : " (not ready)"}`;
     providerSelect.appendChild(option);
   });
   const target = snapshot.session?.provider || snapshot.defaultProvider;
-  providerSelect.value = snapshot.providers.some((provider) => provider.provider === target)
-    ? target
-    : snapshot.defaultProvider;
+  providerSelect.value = snapshot.providers.some((provider) => provider.provider === target) ? target : snapshot.defaultProvider;
 }
 
 function renderModels() {
   modelSelect.innerHTML = "";
   const providerBlock = snapshot.models.find((provider) => provider.provider === providerSelect.value) || snapshot.models[0];
-
-  const auto = document.createElement("option");
+  const auto = createElement("option", "", "auto");
   auto.value = "";
-  auto.textContent = "auto";
   modelSelect.appendChild(auto);
-
   const values = new Set([providerBlock?.activeModel, ...(providerBlock?.suggestedModels || [])].filter(Boolean));
   values.forEach((model) => {
-    const option = document.createElement("option");
+    const option = createElement("option", "", model);
     option.value = model;
-    option.textContent = model;
     modelSelect.appendChild(option);
   });
-
   const savedModel = snapshot.session?.model || "";
   modelSelect.value = Array.from(modelSelect.options).some((option) => option.value === savedModel) ? savedModel : "";
 }
@@ -437,6 +488,8 @@ function applySnapshot(nextSnapshot) {
   skillsInput.value = Array.isArray(nextSnapshot.session?.focusSkills) ? nextSnapshot.session.focusSkills.join(", ") : "";
   dryRunInput.checked = Boolean(nextSnapshot.session?.dryRun);
   briefInput.value = nextSnapshot.session?.brief || "";
+  renderSidebar();
+  renderInspector();
   renderView();
 }
 
@@ -461,38 +514,14 @@ navButtons.forEach((button) => {
   });
 });
 
-providerSelect.addEventListener("change", () => {
-  renderModels();
-  void persistComposerState();
-});
-
-modelSelect.addEventListener("change", () => {
-  void persistComposerState();
-});
-
-stageSelect.addEventListener("change", () => {
-  void persistComposerState();
-});
-
-effortSelect.addEventListener("change", () => {
-  void persistComposerState();
-});
-
-workflowInput.addEventListener("input", () => {
-  void persistComposerState();
-});
-
-skillsInput.addEventListener("input", () => {
-  void persistComposerState();
-});
-
-dryRunInput.addEventListener("change", () => {
-  void persistComposerState();
-});
-
-briefInput.addEventListener("input", () => {
-  void persistComposerState();
-});
+providerSelect.addEventListener("change", () => { renderModels(); void persistComposerState(); renderInspector(); });
+modelSelect.addEventListener("change", () => { void persistComposerState(); });
+stageSelect.addEventListener("change", () => { void persistComposerState(); });
+effortSelect.addEventListener("change", () => { void persistComposerState(); });
+workflowInput.addEventListener("input", () => { void persistComposerState(); });
+skillsInput.addEventListener("input", () => { void persistComposerState(); });
+dryRunInput.addEventListener("change", () => { void persistComposerState(); });
+briefInput.addEventListener("input", () => { void persistComposerState(); });
 
 chooseFolderButton.addEventListener("click", async () => {
   await refreshSnapshot(() => window.softwareFactoryDesktop.chooseFolder());
@@ -507,10 +536,7 @@ runDoctorButton.addEventListener("click", async () => {
   if (!snapshot) return;
   setStatus("doctor", "loading");
   try {
-    const result = await window.softwareFactoryDesktop.doctor({
-      workspace: snapshot.workspace,
-      provider: providerSelect.value,
-    });
+    const result = await window.softwareFactoryDesktop.doctor({ workspace: snapshot.workspace, provider: providerSelect.value });
     appendFeed("system", `Doctor ${providerSelect.value}`, result);
     recordSession({
       id: `doctor-${Date.now()}`,
@@ -527,6 +553,7 @@ runDoctorButton.addEventListener("click", async () => {
     });
     await persistComposerState();
     setStatus("ready", "idle");
+    renderSidebar();
   } catch (error) {
     appendFeed("error", "Doctor falhou", error instanceof Error ? error.message : String(error));
     setStatus("error", "error");
@@ -586,5 +613,11 @@ runButton.addEventListener("click", async () => {
   }
 });
 
-appendFeed("system", "Desktop launcher", "Carregando workspace e preparando a superfície visual do launcher.");
-await refreshSnapshot(() => window.softwareFactoryDesktop.getBootstrap());
+if (!desktopApi) {
+  appendFeed("error", "Bridge do desktop indisponivel", "A API preload do Electron nao foi carregada. Reinicie o app ou reinstale o launcher.");
+  setStatus("bridge-error", "error");
+  throw new Error("softwareFactoryDesktop bridge unavailable");
+}
+
+appendFeed("system", "Desktop launcher", "Carregando workspace e preparando o workbench visual.");
+await refreshSnapshot(() => desktopApi.getBootstrap());
