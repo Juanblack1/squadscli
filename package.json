@@ -31,6 +31,9 @@
     "test": "vitest run",
     "check": "npm run build:all && npm run test"
   },
+  "overrides": {
+    "vite": "8.0.5"
+  },
   "keywords": [
     "cli",
     "software-factory",
