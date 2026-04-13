@@ -32,6 +32,52 @@ function buildProviderEnv(name: ProviderName) {
   return env;
 }
 
+function resolveCliCommand(name: ProviderName) {
+  const template = resolveTemplate(name) ?? null;
+  const binary = detectBinary(template);
+  return binary?.resolvedPath || binary?.binary || name;
+}
+
+function quoteWindowsArg(value: string) {
+  if (!value) {
+    return '""';
+  }
+
+  if (!/[\s"]/g.test(value)) {
+    return value;
+  }
+
+  return `"${value.replace(/"/g, '""')}"`;
+}
+
+function spawnCli(command: string, args: string[], options: { cwd: string; env: Record<string, string | undefined> }) {
+  if (process.platform !== "win32") {
+    return spawn(command, args, {
+      cwd: options.cwd,
+      env: options.env,
+      shell: false,
+    });
+  }
+
+  const shellBinary = process.env.ComSpec || "cmd.exe";
+  const commandLine = [quoteWindowsArg(command), ...args.map(quoteWindowsArg)].join(" ");
+
+  return spawn(shellBinary, ["/d", "/s", "/c", commandLine], {
+    cwd: options.cwd,
+    env: options.env,
+    shell: false,
+  });
+}
+
+function resolveTimeoutMs(options?: { isFallback?: boolean }) {
+  const configured = Number(process.env.SF_PROVIDER_TIMEOUT_MS || 180000);
+  if (!options?.isFallback) {
+    return configured;
+  }
+
+  return Math.max(configured, 300000);
+}
+
 function shouldFallback(errorMessage: string) {
   const normalized = errorMessage.toLowerCase();
 
@@ -43,27 +89,43 @@ function shouldFallback(errorMessage: string) {
   );
 }
 
-async function runTemplateProvider(name: ProviderName, template: string, request: RunRequest): Promise<ProviderResult> {
+async function isGitWorkspace(workspaceDir: string) {
+  try {
+    await fs.access(path.join(workspaceDir, ".git"));
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+async function runTemplateProvider(
+  name: ProviderName,
+  template: string,
+  request: RunRequest,
+  options?: { isFallback?: boolean },
+): Promise<ProviderResult> {
   const promptFile = path.join(request.stateDir, "runs", "current", "prompt.md");
   const selectedModel = request.model || process.env[`${name.toUpperCase().replaceAll("-", "_")}_MODEL`] || "";
 
   if (name === "codex") {
     const promptText = await fs.readFile(promptFile, "utf8");
+    const command = resolveCliCommand(name);
+    const trustedGitWorkspace = await isGitWorkspace(request.workspaceDir);
 
     return await new Promise<ProviderResult>((resolve, reject) => {
       const args = ["exec"];
+      if (!trustedGitWorkspace) args.push("--skip-git-repo-check");
       if (selectedModel) args.push("--model", selectedModel);
       args.push("-");
 
-      const child = spawn("codex", args, {
+      const child = spawnCli(command, args, {
         cwd: request.workspaceDir,
         env: buildProviderEnv(name),
-        shell: false,
       });
 
       let stdout = "";
       let stderr = "";
-      const timeoutMs = Number(process.env.SF_PROVIDER_TIMEOUT_MS || 180000);
+      const timeoutMs = resolveTimeoutMs(options);
       const timeout = setTimeout(() => {
         child.kill();
         reject(new Error(`${name} timed out after ${timeoutMs}ms.`));
@@ -86,20 +148,20 @@ async function runTemplateProvider(name: ProviderName, template: string, request
 
   if (name === "claude") {
     const promptText = await fs.readFile(promptFile, "utf8");
+    const command = resolveCliCommand(name);
 
     return await new Promise<ProviderResult>((resolve, reject) => {
       const args = ["-p"];
       if (selectedModel) args.push("--model", selectedModel);
 
-      const child = spawn("claude", args, {
+      const child = spawnCli(command, args, {
         cwd: request.workspaceDir,
         env: buildProviderEnv(name),
-        shell: false,
       });
 
       let stdout = "";
       let stderr = "";
-      const timeoutMs = Number(process.env.SF_PROVIDER_TIMEOUT_MS || 180000);
+      const timeoutMs = resolveTimeoutMs(options);
       const timeout = setTimeout(() => {
         child.kill();
         reject(new Error(`${name} timed out after ${timeoutMs}ms.`));
@@ -137,7 +199,7 @@ async function runTemplateProvider(name: ProviderName, template: string, request
 
     let stdout = "";
     let stderr = "";
-    const timeoutMs = Number(process.env.SF_PROVIDER_TIMEOUT_MS || 180000);
+    const timeoutMs = resolveTimeoutMs(options);
     const timeout = setTimeout(() => {
       child.kill();
       reject(new Error(`${name} timed out after ${timeoutMs}ms.`));
@@ -175,7 +237,7 @@ export class CommandTemplateProvider implements ProviderAdapter {
         if (!fallbackTemplate || !fallbackBinary?.available) continue;
 
         try {
-          const fallbackResult = await runTemplateProvider(fallbackName, fallbackTemplate, request);
+          const fallbackResult = await runTemplateProvider(fallbackName, fallbackTemplate, request, { isFallback: true });
           return {
             ...fallbackResult,
             raw: {

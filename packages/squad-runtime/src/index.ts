@@ -1,5 +1,5 @@
 import { SOFTWARE_FACTORY_BUNDLE } from "../../../src/generated/software-factory-bundle.js";
-import type { RunStage } from "../../core/src/index.js";
+import type { RunStage, WorkflowExecutionStep } from "../../core/src/index.js";
 
 type PartyExecution = "inline" | "subagent";
 
@@ -70,6 +70,28 @@ export interface StageSquadPacket {
   relevantSteps: SquadPipelineStep[];
   relevantAgents: SquadAgentProfile[];
   runnerSummary: string[];
+  executionPlan: WorkflowExecutionStep[];
+}
+
+function buildExecutionPlan(steps: SquadPipelineStep[], agentsById: Record<string, SquadAgentProfile>) {
+  return steps.map((step, index) => {
+    const nextStep = steps[index + 1] || null;
+    const currentAgent = step.agent ? agentsById[step.agent] : null;
+    const nextAgent = nextStep?.agent ? agentsById[nextStep.agent] : null;
+
+    return {
+      id: step.id,
+      name: step.name || step.type,
+      type: step.type,
+      agentId: step.agent || null,
+      agentName: currentAgent?.name || step.agent || null,
+      dependsOn: step.dependsOn,
+      activation: step.activation || null,
+      trigger: step.trigger || null,
+      handoffTo: nextAgent?.name || nextStep?.agent || null,
+      status: "planned",
+    } satisfies WorkflowExecutionStep;
+  });
 }
 
 function trimQuotes(value: string) {
@@ -436,6 +458,7 @@ export function getStageSquadPacket(stage: RunStage): StageSquadPacket {
   const relevantAgents = [...agentIds]
     .map((id) => context.agentsById[id])
     .filter(Boolean);
+  const executionPlan = buildExecutionPlan(steps, context.agentsById);
 
   return {
     stage,
@@ -448,5 +471,6 @@ export function getStageSquadPacket(stage: RunStage): StageSquadPacket {
     relevantSteps: steps,
     relevantAgents,
     runnerSummary: context.runnerSummary,
+    executionPlan,
   };
 }

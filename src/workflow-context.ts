@@ -38,6 +38,7 @@ async function listTaskFiles(workflowDir: string) {
         return {
           fileName,
           title: titleMatch?.[1]?.trim() || fileName,
+          content: excerpt(content, 700),
         };
       }),
     );

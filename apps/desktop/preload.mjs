@@ -6,4 +6,5 @@ contextBridge.exposeInMainWorld("softwareFactoryDesktop", {
   refreshWorkspace: (workspace) => ipcRenderer.invoke("launcher:refresh-workspace", workspace),
   doctor: (payload) => ipcRenderer.invoke("launcher:doctor", payload),
   run: (payload) => ipcRenderer.invoke("launcher:run", payload),
+  saveSession: (payload) => ipcRenderer.invoke("launcher:save-session", payload),
 });

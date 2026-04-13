@@ -24,6 +24,36 @@ export interface WorkflowState {
   lastRunId: string | null;
   artifacts: ArtifactRef[];
   updatedAt: string;
+  execution?: WorkflowExecutionState | null;
+}
+
+export interface WorkflowExecutionStep {
+  id: string;
+  name: string;
+  type: string;
+  agentId: string | null;
+  agentName: string | null;
+  dependsOn: string[];
+  activation?: string | null;
+  trigger?: string | null;
+  handoffTo?: string | null;
+  status: "planned" | "completed" | "failed";
+}
+
+export interface WorkflowExecutionState {
+  runId: string;
+  workflowName: string;
+  mode: RunMode;
+  stage: RunStage;
+  status: "dry-run" | "running" | "completed" | "failed";
+  effort: EffortLevel;
+  provider: ProviderName;
+  model?: string | null;
+  updatedAt: string;
+  nextAction: string | null;
+  sharedMemoryExcerpt?: string | null;
+  taskMemoryExcerpt?: string | null;
+  steps: WorkflowExecutionStep[];
 }
 
 export interface RunRequest {
@@ -46,6 +76,7 @@ export interface RunResult {
   provider: ProviderName;
   model?: string | null;
   artifacts?: ArtifactRef[];
+  execution?: WorkflowExecutionState;
 }
 
 export interface ProviderProfile {
@@ -87,6 +118,7 @@ export interface WorkflowArtifactSnapshot {
   taskFiles: Array<{
     fileName: string;
     title: string;
+    content: string | null;
   }>;
 }
 

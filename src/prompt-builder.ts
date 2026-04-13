@@ -176,12 +176,24 @@ function renderSquadPacket(squadPacket: StageSquadPacket) {
         .join("\n")
     : "- no dedicated agent packet for this stage";
 
+  const executionPlanLines = squadPacket.executionPlan.length
+    ? squadPacket.executionPlan
+        .map((step) => {
+          const handoff = step.handoffTo ? ` | handoff_to: ${step.handoffTo}` : "";
+          const activation = step.activation ? ` | activation: ${step.activation}` : "";
+          return `- ${step.id}: ${step.name} | agent: ${step.agentName || step.agentId || "none"}${activation}${handoff}`;
+        })
+        .join("\n")
+    : "- no explicit execution plan for this stage";
+
   return [
     `Stage summary: ${squadPacket.summary}`,
     "Relevant pipeline steps:",
     stepLines,
     "Relevant agents:",
     agentLines,
+    "Execution plan:",
+    executionPlanLines,
     "Runner expectations:",
     squadPacket.runnerSummary.map((line) => `- ${line}`).join("\n"),
   ].join("\n");

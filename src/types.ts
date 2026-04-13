@@ -44,6 +44,7 @@ export interface WorkflowPaths {
   techspecPath: string;
   tasksPath: string;
   summaryPath: string;
+  statePath: string;
   sharedMemoryPath: string;
   taskMemoryPath: string;
 }

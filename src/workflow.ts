@@ -8,6 +8,7 @@ import {
   splitTaskBlocks,
 } from "../packages/artifact-engine/src/index.js";
 import { buildEmptyWorkflowMemory, mergeMemoryContent } from "../packages/memory-engine/src/index.js";
+import type { WorkflowExecutionState, WorkflowExecutionStep } from "../packages/core/src/index.js";
 import { ensureDir, fileExists, writeText } from "./fs-utils.js";
 import type { RunStage, WorkflowPaths } from "./types.js";
 
@@ -43,6 +44,7 @@ export function getWorkflowPaths(stateDir: string, workflowName: string, runId: 
     techspecPath: path.join(workflowDir, "_techspec.md"),
     tasksPath: path.join(workflowDir, "_tasks.md"),
     summaryPath: path.join(workflowDir, "summary.md"),
+    statePath: path.join(workflowDir, "state.json"),
     sharedMemoryPath: path.join(memoryDir, "MEMORY.md"),
     taskMemoryPath: path.join(memoryDir, `${workflowName}.md`),
   };
@@ -167,6 +169,44 @@ function nextStepForStage(stage: RunStage) {
   if (stage === "review") return "run --mode autonomy";
   if (stage === "autonomy") return "create-prd or run";
   return "run --mode review";
+}
+
+export function createWorkflowExecutionState(options: {
+  runId: string;
+  workflowName: string;
+  mode: RunStage | "full-run" | "review" | "autonomy";
+  stage: RunStage;
+  effort: string;
+  provider: string;
+  model: string | null;
+  status: "dry-run" | "running" | "completed" | "failed";
+  sharedMemoryExcerpt?: string | null;
+  taskMemoryExcerpt?: string | null;
+  steps: WorkflowExecutionStep[];
+}): WorkflowExecutionState {
+  return {
+    runId: options.runId,
+    workflowName: options.workflowName,
+    mode: options.mode as WorkflowExecutionState["mode"],
+    stage: options.stage,
+    status: options.status,
+    effort: options.effort as WorkflowExecutionState["effort"],
+    provider: options.provider as WorkflowExecutionState["provider"],
+    model: options.model,
+    updatedAt: new Date().toISOString(),
+    nextAction: nextStepForStage(options.stage),
+    sharedMemoryExcerpt: options.sharedMemoryExcerpt || null,
+    taskMemoryExcerpt: options.taskMemoryExcerpt || null,
+    steps: options.steps,
+  };
+}
+
+export async function writeExecutionState(paths: WorkflowPaths, execution: WorkflowExecutionState, runDir: string, currentDir: string) {
+  const content = `${JSON.stringify(execution, null, 2)}\n`;
+  await writeText(paths.statePath, content);
+  await writeText(path.join(paths.currentRunDir, "state.json"), content);
+  await writeText(path.join(runDir, "state.json"), content);
+  await writeText(path.join(currentDir, "state.json"), content);
 }
 
 async function updateTaskMemory(paths: WorkflowPaths, stage: RunStage, responseText: string) {

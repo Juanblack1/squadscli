@@ -3,96 +3,160 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <meta http-equiv="Content-Security-Policy" content="default-src 'self'; script-src 'self'; style-src 'self' 'unsafe-inline'; img-src 'self' data:; object-src 'none'; base-uri 'none'; form-action 'self'; frame-ancestors 'none';" />
     <title>Software Factory Desktop</title>
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <div class="desktop-shell">
-      <aside class="sidebar">
-        <section class="panel hero-panel">
-          <p class="eyebrow">software-factory</p>
-          <h1>Desktop Runner</h1>
-          <p class="lede">Escolha a pasta do projeto, configure provider e rode o motor do software-factory dentro de uma interface desktop.</p>
-        </section>
+      <aside class="nav-rail">
+        <div class="rail-logo">
+          <span>SF</span>
+        </div>
 
-        <section class="panel workspace-panel">
-          <div class="section-header">
-            <span class="pill">Workspace</span>
-            <button id="choose-folder" class="ghost tiny">Trocar</button>
-          </div>
-          <p id="workspace-path" class="workspace-path">Carregando...</p>
-          <div class="grid two-up compact">
-            <label>
-              <span>Provider</span>
-              <select id="provider-select"></select>
-            </label>
-            <label>
-              <span>Model</span>
-              <select id="model-select"></select>
-            </label>
-            <label>
-              <span>Stage</span>
-              <select id="stage-select">
-                <option value="full-run">full-run</option>
-                <option value="prd">prd</option>
-                <option value="techspec">techspec</option>
-                <option value="tasks">tasks</option>
-                <option value="review">review</option>
-                <option value="autonomy">autonomy</option>
-              </select>
-            </label>
-            <label>
-              <span>Effort</span>
-              <select id="effort-select">
-                <option value="lite">lite</option>
-                <option value="balanced">balanced</option>
-                <option value="deep">deep</option>
-              </select>
-            </label>
-          </div>
+        <nav class="rail-nav">
+          <button class="rail-link active" data-view="home">Home</button>
+          <button class="rail-link" data-view="providers">Providers</button>
+          <button class="rail-link" data-view="workflows">Workflows</button>
+          <button class="rail-link" data-view="runs">Runs</button>
+          <button class="rail-link" data-view="memory">Memory</button>
+          <button class="rail-link" data-view="sessions">Sessions</button>
+        </nav>
 
-          <label class="workflow-field">
-            <span>Workflow</span>
-            <input id="workflow-input" type="text" placeholder="onboarding ou deixe vazio" />
-          </label>
-
-          <label class="checkbox-row">
-            <input id="dry-run-input" type="checkbox" />
-            <span>Executar em dry-run</span>
-          </label>
-
-          <div class="button-row">
-            <button id="refresh-workspace" class="ghost">Atualizar</button>
-            <button id="run-doctor" class="secondary">Doctor</button>
-          </div>
-        </section>
-
-        <section class="panel recent-panel">
-          <div class="section-header">
-            <span class="pill subtle">Runs recentes</span>
-          </div>
-          <div id="recent-runs" class="list-block"></div>
-        </section>
+        <div class="rail-footer">
+          <span class="rail-chip">desktop</span>
+          <span class="rail-chip subtle">runner</span>
+        </div>
       </aside>
 
-      <main class="content">
-        <section class="panel output-panel">
-          <div class="section-header">
-            <div>
-              <p class="eyebrow dim">activity feed</p>
-              <h2>Resultado da execução</h2>
-            </div>
-            <span id="status-badge" class="status-badge idle">idle</span>
+      <main class="main-stage">
+        <header class="hero-card panel">
+          <div>
+            <p class="eyebrow">software-factory</p>
+            <h1>Desktop Control Surface</h1>
+            <p class="lede">Escolha o workspace, navegue pelos providers e workflows e rode o motor do software-factory dentro de um launcher visual mais próximo das CLIs modernas.</p>
           </div>
-          <div id="feed" class="feed"></div>
+
+          <div class="hero-actions">
+            <button id="choose-folder" class="secondary">Escolher pasta</button>
+            <button id="refresh-workspace" class="ghost">Atualizar</button>
+          </div>
+        </header>
+
+        <section class="summary-grid">
+          <article class="summary-card panel">
+            <span class="summary-label">Workspace</span>
+            <strong id="workspace-name" class="summary-value">Carregando...</strong>
+            <p id="workspace-path" class="summary-meta">Aguardando caminho</p>
+          </article>
+
+          <article class="summary-card panel">
+            <span class="summary-label">Providers prontos</span>
+            <strong id="ready-count" class="summary-value">0</strong>
+            <p id="default-provider" class="summary-meta">default</p>
+          </article>
+
+          <article class="summary-card panel">
+            <span class="summary-label">Workflows</span>
+            <strong id="workflow-count" class="summary-value">0</strong>
+            <p class="summary-meta">artefatos detectados</p>
+          </article>
+
+          <article class="summary-card panel">
+            <span class="summary-label">Runs recentes</span>
+            <strong id="run-count" class="summary-value">0</strong>
+            <p class="summary-meta">histórico local e do workspace</p>
+          </article>
         </section>
 
-        <section class="panel composer-panel">
-          <div class="section-header">
-            <span class="pill">Brief</span>
-            <button id="run-button" class="primary">Rodar</button>
-          </div>
-          <textarea id="brief-input" placeholder="Descreva o que voce quer rodar neste workspace..."></textarea>
+        <section class="content-grid">
+          <section class="content-panel panel">
+            <div class="section-header wide">
+              <div>
+                <p class="eyebrow dim" id="view-kicker">home</p>
+                <h2 id="view-title">Visão geral</h2>
+              </div>
+              <span id="status-badge" class="status-badge idle">idle</span>
+            </div>
+
+            <div id="view-content" class="view-content"></div>
+          </section>
+
+          <aside class="composer-column">
+            <section class="panel command-panel">
+              <div class="section-header wide">
+                <div>
+                  <p class="eyebrow dim">run composer</p>
+                  <h2>Nova rodada</h2>
+                </div>
+                <button id="run-doctor" class="ghost tiny">Doctor</button>
+              </div>
+
+              <div class="form-grid">
+                <label>
+                  <span>Provider</span>
+                  <select id="provider-select"></select>
+                </label>
+                <label>
+                  <span>Model</span>
+                  <select id="model-select"></select>
+                </label>
+                <label>
+                  <span>Stage</span>
+                  <select id="stage-select">
+                    <option value="full-run">full-run</option>
+                    <option value="prd">prd</option>
+                    <option value="techspec">techspec</option>
+                    <option value="tasks">tasks</option>
+                    <option value="review">review</option>
+                    <option value="autonomy">autonomy</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Effort</span>
+                  <select id="effort-select">
+                    <option value="lite">lite</option>
+                    <option value="balanced">balanced</option>
+                    <option value="deep">deep</option>
+                  </select>
+                </label>
+              </div>
+
+              <label class="stack-field">
+                <span>Workflow</span>
+                <input id="workflow-input" type="text" placeholder="onboarding ou vazio para auto" />
+              </label>
+
+              <label class="stack-field">
+                <span>Skills focadas</span>
+                <input id="skills-input" type="text" placeholder="api-design,code-review" />
+              </label>
+
+              <label class="checkbox-row">
+                <input id="dry-run-input" type="checkbox" />
+                <span>Executar em dry-run</span>
+              </label>
+
+              <label class="stack-field">
+                <span>Brief</span>
+                <textarea id="brief-input" placeholder="Descreva o objetivo da rodada para este workspace..."></textarea>
+              </label>
+
+              <div class="button-stack">
+                <button id="run-button" class="primary">Rodar agora</button>
+              </div>
+            </section>
+
+            <section class="panel feed-panel">
+              <div class="section-header wide">
+                <div>
+                  <p class="eyebrow dim">activity feed</p>
+                  <h2>Eventos</h2>
+                </div>
+              </div>
+              <div id="feed" class="feed"></div>
+            </section>
+          </aside>
         </section>
       </main>
     </div>

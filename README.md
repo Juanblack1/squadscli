@@ -30,7 +30,7 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 - `software-factory`
 - alias compatível com ambientes agent-native: `cli-anything-software-factory`
 - modo REPL estilo terminal com estado de sessão: `software-factory console`
-- launcher desktop com terminal embutido: `software-factory desktop`
+- launcher desktop visual: `software-factory desktop`
 
 ## Instalação simples
 
@@ -95,9 +95,14 @@ Software Factory Desktop <versao>.exe
 O launcher desktop oferece:
 
 - seletor visual de pasta
-- terminal embutido com `software-factory console`
+- navegação lateral por views
+- views de `Home`, `Providers`, `Workflows`, `Runs`, `Memory` e `Sessions`
+- histórico local de sessões
+- cards clicáveis de providers, workflows e runs
+- composer visual para rodar o motor do software-factory
 - interface moderna estilo app desktop
 - workspace persistido entre aberturas
+- execução mais segura com validação de IPC e navegação bloqueada
 
 Tambem pode ser aberto pela CLI:
 

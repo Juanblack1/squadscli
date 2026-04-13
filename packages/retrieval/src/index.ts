@@ -33,6 +33,80 @@ function scoreText(queryTokens: string[], content: string) {
   return score;
 }
 
+const SOURCE_STAGE_WEIGHTS: Partial<Record<RunStage, Partial<Record<RetrievalChunk["source"], number>>>> = {
+  prd: {
+    workflow: 2.2,
+    "workflow-task-file": 0.8,
+    "squad-step": 1.4,
+    "squad-agent": 1.1,
+    runner: 1,
+  },
+  techspec: {
+    workflow: 2.4,
+    "workflow-task-file": 1.1,
+    "squad-step": 1.5,
+    "squad-agent": 1.1,
+    runner: 1,
+  },
+  tasks: {
+    workflow: 2.1,
+    "workflow-task-file": 1.8,
+    "squad-step": 1.6,
+    "squad-agent": 1.2,
+    runner: 1,
+  },
+  review: {
+    workflow: 2.5,
+    "workflow-task-file": 1.5,
+    "squad-step": 1.3,
+    "squad-agent": 1.1,
+    runner: 1,
+  },
+  autonomy: {
+    workflow: 2.3,
+    "workflow-task-file": 1,
+    "squad-step": 1.2,
+    "squad-agent": 1.4,
+    runner: 1.2,
+  },
+  "full-run": {
+    workflow: 2.2,
+    "workflow-task-file": 1.4,
+    "squad-step": 1.8,
+    "squad-agent": 1.2,
+    runner: 1.1,
+  },
+};
+
+function phraseBoost(queryTokens: string[], label: string, content: string) {
+  const normalizedLabel = label.toLowerCase();
+  const normalizedContent = content.toLowerCase();
+  let boost = 0;
+
+  for (const token of queryTokens) {
+    if (normalizedLabel.includes(token)) {
+      boost += 1.5;
+      continue;
+    }
+
+    if (normalizedContent.includes(token)) {
+      boost += 0.25;
+    }
+  }
+
+  return boost;
+}
+
+function scoreChunk(stage: RunStage, queryTokens: string[], chunk: RetrievalChunk) {
+  const base = scoreText(queryTokens, `${chunk.label}\n${chunk.content}`);
+  if (base === 0) {
+    return 0;
+  }
+
+  const sourceWeight = SOURCE_STAGE_WEIGHTS[stage]?.[chunk.source] || 1;
+  return base * sourceWeight + phraseBoost(queryTokens, chunk.label, chunk.content);
+}
+
 function excerpt(content: string, maxChars = 700) {
   const normalized = content.replace(/\r/g, "").trim();
   if (normalized.length <= maxChars) {
@@ -65,7 +139,7 @@ function buildWorkflowChunks(snapshot: WorkflowArtifactSnapshot): RetrievalChunk
       source: "workflow-task-file",
       label: task.fileName,
       score: 0,
-      content: task.title,
+      content: [task.title, task.content || ""].filter(Boolean).join("\n"),
     });
   }
 
@@ -119,6 +193,22 @@ function buildSquadChunks(packet: StageSquadPacket): RetrievalChunk[] {
     });
   }
 
+  for (const [index, step] of packet.executionPlan.entries()) {
+    chunks.push({
+      id: `execution-step-${index + 1}`,
+      source: "squad-step",
+      label: `${step.id}: ${step.name}`,
+      score: 0,
+      content: [
+        step.type,
+        step.agentName ? `agent: ${step.agentName}` : "",
+        step.activation ? `activation: ${step.activation}` : "",
+        step.dependsOn.length ? `depends_on: ${step.dependsOn.join(", ")}` : "",
+        step.handoffTo ? `handoff_to: ${step.handoffTo}` : "",
+      ].filter(Boolean).join(" | "),
+    });
+  }
+
   return chunks;
 }
 
@@ -146,7 +236,7 @@ export function retrieveStageContext(options: {
   const ranked = chunks
     .map((chunk) => ({
       ...chunk,
-      score: scoreText(queryTokens, `${chunk.label}\n${chunk.content}`),
+      score: scoreChunk(options.stage, queryTokens, chunk),
     }))
     .filter((chunk) => chunk.score > 0)
     .sort((left, right) => right.score - left.score || left.label.localeCompare(right.label));

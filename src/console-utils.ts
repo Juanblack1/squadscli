@@ -1,6 +1,7 @@
 import fs from "node:fs/promises";
 import path from "node:path";
 
+import type { WorkflowExecutionState } from "../packages/core/src/index.js";
 import { loadSoftwareFactoryConfig } from "./config.js";
 import { SOFTWARE_FACTORY_BUNDLE } from "./generated/software-factory-bundle.js";
 import { loadWorkflowArtifactSnapshot } from "./workflow-context.js";
@@ -10,6 +11,7 @@ export interface WorkflowSummary {
   workflowName: string;
   currentStage: "full-run" | "prd" | "techspec" | "tasks" | "review" | "autonomy";
   updatedAt: string;
+  execution: WorkflowExecutionState | null;
 }
 
 export interface RecentRunSummary {
@@ -19,6 +21,15 @@ export interface RecentRunSummary {
   provider: string;
   model: string | null;
   updatedAt: string;
+  execution: WorkflowExecutionState | null;
+}
+
+async function readExecutionState(filePath: string) {
+  try {
+    return JSON.parse(await fs.readFile(filePath, "utf8")) as WorkflowExecutionState;
+  } catch {
+    return null;
+  }
 }
 
 export function extractSquadSkills(squadYaml = SOFTWARE_FACTORY_BUNDLE.squadYaml) {
@@ -80,11 +91,13 @@ export async function listWorkflowSummaries(workspaceDir: string): Promise<Workf
         const snapshot = await loadWorkflowArtifactSnapshot(
           getWorkflowPaths(path.join(workspaceDir, config.outputDir), workflowName, "console-view"),
         );
+        const execution = await readExecutionState(path.join(workflowDir, "state.json"));
 
         return {
           workflowName,
           currentStage: inferCurrentStage(snapshot),
           updatedAt: stats.mtime.toISOString(),
+          execution,
         } satisfies WorkflowSummary;
       }),
     );
@@ -117,6 +130,7 @@ export async function listRecentRuns(workspaceDir: string, limit = 10): Promise<
             model?: string | null;
           };
           const stats = await fs.stat(metaPath);
+          const execution = await readExecutionState(path.join(runsDir, runId, "state.json"));
 
           return {
             runId,
@@ -125,6 +139,7 @@ export async function listRecentRuns(workspaceDir: string, limit = 10): Promise<
             provider: raw.provider || "unknown",
             model: raw.model || null,
             updatedAt: stats.mtime.toISOString(),
+            execution,
           } satisfies RecentRunSummary;
         } catch {
           return null;
