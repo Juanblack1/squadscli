@@ -60,8 +60,26 @@ function Install-SoftwareFactoryPackage {
     "//npm.pkg.github.com/:_authToken=$ResolvedToken"
   ) | Set-Content -Path $TempConfigPath -Encoding ASCII
 
-  npm install -g $ResolvedPackageName --userconfig $TempConfigPath
-  return $LASTEXITCODE -eq 0
+  $npmCommand = Get-Command npm.cmd -ErrorAction SilentlyContinue
+  $npmBinary = $null
+  if ($npmCommand) {
+    $npmBinary = $npmCommand.Source
+  }
+
+  if ([string]::IsNullOrWhiteSpace($npmBinary)) {
+    $npmBinary = (Get-Command npm -ErrorAction Stop).Source
+  }
+
+  $arguments = @(
+    "install"
+    "-g"
+    $ResolvedPackageName
+    "--userconfig"
+    $TempConfigPath
+  )
+
+  $process = Start-Process -FilePath $npmBinary -ArgumentList $arguments -NoNewWindow -Wait -PassThru
+  return $process.ExitCode -eq 0
 }
 
 Require-Command node

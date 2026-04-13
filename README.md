@@ -66,6 +66,23 @@ Requisitos para o instalador:
 - Node.js 20+
 - GitHub token com acesso ao pacote, apenas se `gh auth token` nao estiver disponivel
 
+### Windows por executavel
+
+Baixe o instalador `.exe` na release mais recente:
+
+```text
+software-factory-installer-<versao>.exe
+```
+
+Ao abrir o executavel, ele:
+
+- instala o pacote global do `software-factory`
+- tenta usar `gh auth token` se o GitHub CLI estiver logado
+- pede token manualmente se necessario
+- abre o `software-factory console` no fim
+
+O executavel da release e gerado a partir do instalador PowerShell com `ps2exe`.
+
 ### 2. Server HTTP
 
 Suba com:
