@@ -38,13 +38,20 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 Instala e já abre o console no diretório atual:
 
 ```powershell
-$env:GITHUB_PACKAGES_TOKEN="SEU_TOKEN"; irm https://raw.githubusercontent.com/Juanblack1/software-factory-cli/master/scripts/install-windows.ps1 | iex
+irm https://raw.githubusercontent.com/Juanblack1/software-factory-cli/master/scripts/install-windows.ps1 | iex
 ```
+
+O instalador tenta nesta ordem:
+
+- usar `GITHUB_PACKAGES_TOKEN` se já existir
+- usar `gh auth token` se o GitHub CLI estiver logado
+- pedir o token interativamente se ainda faltar
+- se o token do `gh` nao tiver escopo para packages, ele pede um token manual e tenta de novo
 
 Instala sem abrir automaticamente:
 
 ```powershell
-$env:GITHUB_PACKAGES_TOKEN="SEU_TOKEN"; $tmp="$env:TEMP\sf-install.ps1"; iwr https://raw.githubusercontent.com/Juanblack1/software-factory-cli/master/scripts/install-windows.ps1 -OutFile $tmp; & $tmp -NoLaunch
+$tmp="$env:TEMP\sf-install.ps1"; iwr https://raw.githubusercontent.com/Juanblack1/software-factory-cli/master/scripts/install-windows.ps1 -OutFile $tmp; & $tmp -NoLaunch
 ```
 
 Se preferir baixar e executar um arquivo local, use:
@@ -57,7 +64,7 @@ Requisitos para o instalador:
 
 - Windows PowerShell
 - Node.js 20+
-- `GITHUB_PACKAGES_TOKEN` com acesso ao pacote
+- GitHub token com acesso ao pacote, apenas se `gh auth token` nao estiver disponivel
 
 ### 2. Server HTTP
 
