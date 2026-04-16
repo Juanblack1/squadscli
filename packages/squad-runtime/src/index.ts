@@ -1,3 +1,6 @@
+import fs from "node:fs";
+import path from "node:path";
+
 import { SOFTWARE_FACTORY_BUNDLE } from "../../../src/generated/software-factory-bundle.js";
 import type { RunStage, WorkflowExecutionStep } from "../../core/src/index.js";
 
@@ -71,6 +74,27 @@ export interface StageSquadPacket {
   relevantAgents: SquadAgentProfile[];
   runnerSummary: string[];
   executionPlan: WorkflowExecutionStep[];
+}
+
+export interface SquadSummary {
+  code: string;
+  name: string;
+  icon: string;
+  path: string;
+  bundled: boolean;
+}
+
+interface SquadBundleSource {
+  squadYaml: string;
+  squadPartyCsv: string;
+  pipelineYaml: string;
+  runnerPipelineMd: string;
+  agents: Record<string, string>;
+}
+
+interface LoadSquadOptions {
+  workspaceDir?: string;
+  squadCode?: string;
 }
 
 function buildExecutionPlan(steps: SquadPipelineStep[], agentsById: Record<string, SquadAgentProfile>) {
@@ -213,7 +237,14 @@ function parsePartyCsv(raw: string): SquadPartyMember[] {
   const [, ...rows] = lines;
 
   return rows.map((row) => {
-    const [id, name, icon, role, path, execution, skills] = parseCsvRow(row);
+    const columns = parseCsvRow(row);
+    const id = columns[0] || "";
+    const name = columns[1] || "";
+    const icon = columns[2] || "";
+    const path = columns[columns.length - 3] || "";
+    const execution = columns[columns.length - 2] || "subagent";
+    const skills = columns[columns.length - 1] || "";
+    const role = columns.slice(3, -3).join(",").trim();
 
     return {
       id,
@@ -410,11 +441,11 @@ function buildRunnerSummary(raw: string) {
   return summary;
 }
 
-const SQUAD_CONTEXT: SquadContext = (() => {
-  const squad = parseSquadYaml(SOFTWARE_FACTORY_BUNDLE.squadYaml);
-  const party = parsePartyCsv(SOFTWARE_FACTORY_BUNDLE.squadPartyCsv);
+function buildSquadContext(bundle: SquadBundleSource) {
+  const squad = parseSquadYaml(bundle.squadYaml);
+  const party = parsePartyCsv(bundle.squadPartyCsv);
   const agentsById = Object.fromEntries(
-    Object.entries(SOFTWARE_FACTORY_BUNDLE.agents).map(([fileName, raw]) => {
+    Object.entries(bundle.agents).map(([fileName, raw]) => {
       const profile = parseAgentProfile(fileName, raw, party);
       return [profile.id, profile];
     }),
@@ -424,17 +455,172 @@ const SQUAD_CONTEXT: SquadContext = (() => {
     ...squad,
     party,
     agentsById,
-    pipelineSteps: parsePipelineSteps(SOFTWARE_FACTORY_BUNDLE.pipelineYaml),
-    runnerSummary: buildRunnerSummary(SOFTWARE_FACTORY_BUNDLE.runnerPipelineMd),
+    pipelineSteps: parsePipelineSteps(bundle.pipelineYaml),
+    runnerSummary: buildRunnerSummary(bundle.runnerPipelineMd),
   } satisfies SquadContext;
-})();
-
-export function loadSoftwareFactoryContext() {
-  return SQUAD_CONTEXT;
 }
 
-export function getStageSquadPacket(stage: RunStage): StageSquadPacket {
-  const context = loadSoftwareFactoryContext();
+const BUNDLED_SOFTWARE_FACTORY_CONTEXT = buildSquadContext(SOFTWARE_FACTORY_BUNDLE);
+
+function findWorkspaceRoot(workspaceDir: string) {
+  let current = path.resolve(workspaceDir);
+
+  while (true) {
+    if (fs.existsSync(path.join(current, "squads"))) {
+      return current;
+    }
+
+    const parent = path.dirname(current);
+    if (parent === current) {
+      return null;
+    }
+    current = parent;
+  }
+}
+
+function readTextIfExists(filePath: string) {
+  return fs.existsSync(filePath) ? fs.readFileSync(filePath, "utf8") : null;
+}
+
+function resolveDefaultSquadCode(workspaceDir: string) {
+  const root = findWorkspaceRoot(workspaceDir);
+  if (!root) {
+    return null;
+  }
+
+  const softwareFactoryPath = path.join(root, "squads", "software-factory", "squad.yaml");
+  if (fs.existsSync(softwareFactoryPath)) {
+    return "software-factory";
+  }
+
+  const squadsDir = path.join(root, "squads");
+  const entries = fs.readdirSync(squadsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory() && fs.existsSync(path.join(squadsDir, entry.name, "squad.yaml")))
+    .map((entry) => entry.name)
+    .sort();
+
+  return entries[0] || null;
+}
+
+function readWorkspaceSquadBundle(workspaceDir: string, squadCode: string): SquadBundleSource | null {
+  const root = findWorkspaceRoot(workspaceDir);
+  if (!root) {
+    return null;
+  }
+
+  const squadDir = path.join(root, "squads", squadCode);
+  const squadYaml = readTextIfExists(path.join(squadDir, "squad.yaml"));
+  const squadPartyCsv = readTextIfExists(path.join(squadDir, "squad-party.csv"));
+  const pipelineYaml = readTextIfExists(path.join(squadDir, "pipeline", "pipeline.yaml"));
+  const runnerPipelineMd = readTextIfExists(path.join(root, "_opensquad", "core", "runner.pipeline.md"));
+
+  if (!squadYaml || !squadPartyCsv || !pipelineYaml || !runnerPipelineMd) {
+    return null;
+  }
+
+  const party = parsePartyCsv(squadPartyCsv);
+  const agents = Object.fromEntries(
+    party.map((member) => {
+      const relativePath = member.path.replace(/^\.\//, "");
+      const fileName = path.basename(relativePath);
+      const filePath = path.join(squadDir, relativePath);
+      return [fileName, fs.readFileSync(filePath, "utf8")];
+    }),
+  );
+
+  return {
+    squadYaml,
+    squadPartyCsv,
+    pipelineYaml,
+    runnerPipelineMd,
+    agents,
+  } satisfies SquadBundleSource;
+}
+
+export function listAvailableSquads(workspaceDir?: string): SquadSummary[] {
+  if (!workspaceDir) {
+    return [
+      {
+        code: BUNDLED_SOFTWARE_FACTORY_CONTEXT.code,
+        name: BUNDLED_SOFTWARE_FACTORY_CONTEXT.name,
+        icon: BUNDLED_SOFTWARE_FACTORY_CONTEXT.icon,
+        path: "bundled:software-factory",
+        bundled: true,
+      },
+    ];
+  }
+
+  const root = findWorkspaceRoot(workspaceDir);
+  if (!root) {
+    return [
+      {
+        code: BUNDLED_SOFTWARE_FACTORY_CONTEXT.code,
+        name: BUNDLED_SOFTWARE_FACTORY_CONTEXT.name,
+        icon: BUNDLED_SOFTWARE_FACTORY_CONTEXT.icon,
+        path: "bundled:software-factory",
+        bundled: true,
+      },
+    ];
+  }
+
+  const squadsDir = path.join(root, "squads");
+  const summaries = fs.readdirSync(squadsDir, { withFileTypes: true })
+    .filter((entry) => entry.isDirectory())
+    .map((entry) => {
+      const squadYaml = readTextIfExists(path.join(squadsDir, entry.name, "squad.yaml"));
+      if (!squadYaml) {
+        return null;
+      }
+
+      const parsed = parseSquadYaml(squadYaml);
+      return {
+        code: parsed.code || entry.name,
+        name: parsed.name || entry.name,
+        icon: parsed.icon || "🧩",
+        path: path.join(squadsDir, entry.name),
+        bundled: false,
+      } satisfies SquadSummary;
+    });
+
+  const availableSummaries: SquadSummary[] = summaries.filter((summary): summary is NonNullable<(typeof summaries)[number]> => summary !== null);
+  availableSummaries.sort((left, right) => left.code.localeCompare(right.code));
+
+  return availableSummaries.length > 0
+    ? availableSummaries
+    : [
+        {
+          code: BUNDLED_SOFTWARE_FACTORY_CONTEXT.code,
+          name: BUNDLED_SOFTWARE_FACTORY_CONTEXT.name,
+          icon: BUNDLED_SOFTWARE_FACTORY_CONTEXT.icon,
+          path: "bundled:software-factory",
+          bundled: true,
+        },
+      ];
+}
+
+export function loadSquadContext(options: LoadSquadOptions = {}) {
+  const requestedCode = options.squadCode || (options.workspaceDir ? resolveDefaultSquadCode(options.workspaceDir) : null) || "software-factory";
+
+  if (options.workspaceDir) {
+    const bundle = readWorkspaceSquadBundle(options.workspaceDir, requestedCode);
+    if (bundle) {
+      return buildSquadContext(bundle);
+    }
+  }
+
+  if (requestedCode !== "software-factory") {
+    throw new Error(`Squad nao encontrado no workspace: ${requestedCode}`);
+  }
+
+  return BUNDLED_SOFTWARE_FACTORY_CONTEXT;
+}
+
+export function loadSoftwareFactoryContext(workspaceDir?: string, squadCode?: string) {
+  return loadSquadContext({ workspaceDir, squadCode });
+}
+
+export function getStageSquadPacket(stage: RunStage, options: LoadSquadOptions = {}): StageSquadPacket {
+  const context = loadSquadContext(options);
   const steps =
     stage === "full-run"
       ? context.pipelineSteps.filter((step) => Boolean(step.agent))

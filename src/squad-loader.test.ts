@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { getStageSquadPacket, loadSoftwareFactoryContext } from "./squad-loader.js";
+import { getStageSquadPacket, listAvailableSquads, loadSoftwareFactoryContext } from "./squad-loader.js";
 
 describe("squad-loader", () => {
   it("loads bundled software factory context", () => {
@@ -18,5 +18,11 @@ describe("squad-loader", () => {
     expect(packet.relevantSteps.some((step) => step.agent === "product-owner")).toBe(true);
     expect(packet.relevantAgents.some((agent) => agent.id === "product-owner")).toBe(true);
     expect(packet.runnerSummary.length).toBeGreaterThan(0);
+  });
+
+  it("lists at least the bundled default squad", () => {
+    const squads = listAvailableSquads();
+
+    expect(squads.some((squad) => squad.code === "software-factory")).toBe(true);
   });
 });

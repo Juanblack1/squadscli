@@ -12,6 +12,7 @@ const rootDir = path.resolve(__dirname, "..", "..");
 let mainWindow = null;
 let currentWorkspace = process.cwd();
 let desktopSession = {
+  squad: "software-factory",
   provider: "",
   model: "",
   stage: "full-run",
@@ -29,6 +30,7 @@ const doctorPayloadSchema = z.object({
 });
 const runPayloadSchema = z.object({
   workspace: workspaceSchema,
+  squad: z.string().trim().min(1).max(120).optional().nullable(),
   provider: z.string().trim().min(1).max(64),
   model: z.string().max(200).optional().nullable(),
   stage: z.enum(["full-run", "prd", "techspec", "tasks", "review", "autonomy"]),
@@ -40,6 +42,7 @@ const runPayloadSchema = z.object({
   focusSkills: z.array(z.string().trim().min(1).max(80)).max(20).optional(),
 });
 const sessionSchema = z.object({
+  squad: z.string().max(120).optional(),
   provider: z.string().max(64).optional(),
   model: z.string().max(200).optional().nullable(),
   stage: z.enum(["full-run", "prd", "techspec", "tasks", "review", "autonomy"]).optional(),
@@ -122,6 +125,7 @@ async function getBackend() {
       runModelsCommand: modelsMod.runModelsCommand,
       runDoctorCommand: doctorMod.runDoctorCommand,
       runSoftwareFactoryCommand: runMod.runSoftwareFactoryCommand,
+      listAvailableSquadSummaries: consoleUtilsMod.listAvailableSquadSummaries,
       listWorkflowSummaries: consoleUtilsMod.listWorkflowSummaries,
       listRecentRuns: consoleUtilsMod.listRecentRuns,
       loadSoftwareFactoryConfig: configMod.loadSoftwareFactoryConfig,
@@ -136,8 +140,9 @@ async function getWorkspaceSnapshot(workspaceDir) {
   const backend = await getBackend();
   const providers = await backend.runProvidersCommand(safeWorkspaceDir);
   const readyProvider = providers.providers.find((provider) => provider.ready)?.provider || providers.defaultProvider;
-  const [models, workflows, recentRuns, config] = await Promise.all([
+  const [models, squads, workflows, recentRuns, config] = await Promise.all([
     backend.runModelsCommand(safeWorkspaceDir, readyProvider),
+    Promise.resolve(backend.listAvailableSquadSummaries(safeWorkspaceDir)),
     backend.listWorkflowSummaries(safeWorkspaceDir),
     backend.listRecentRuns(safeWorkspaceDir),
     backend.loadSoftwareFactoryConfig(safeWorkspaceDir),
@@ -149,6 +154,7 @@ async function getWorkspaceSnapshot(workspaceDir) {
     defaultEffort: providers.defaultEffort,
     providers: providers.providers,
     models: models.providers,
+    squads,
     workflows,
     recentRuns,
     outputDir: config.outputDir,
@@ -169,7 +175,7 @@ async function createWindow() {
     height: 960,
     minWidth: 1240,
     minHeight: 760,
-    title: "Software Factory Desktop",
+    title: "SquadsCli Desktop",
     autoHideMenuBar: true,
     backgroundColor: "#070b16",
     webPreferences: {
@@ -232,6 +238,7 @@ ipcMain.handle("launcher:run", async (_event, payload) => {
   const workspaceDir = await ensureWorkspaceDir(parsed.workspace);
   return await backend.runSoftwareFactoryCommand({
     name: parsed.workflowName || undefined,
+    squad: parsed.squad || undefined,
     brief: parsed.brief,
     workspaceDir,
     mode: parsed.mode,

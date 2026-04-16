@@ -93,8 +93,8 @@ if ([string]::IsNullOrWhiteSpace($Token)) {
   throw "Nao foi possivel obter um token do GitHub Packages."
 }
 
-$tempConfig = Join-Path $env:TEMP "software-factory-install-$PID.npmrc"
-$packageName = "@juanblack1/software-factory-cli@$Version"
+$tempConfig = Join-Path $env:TEMP "squadscli-install-$PID.npmrc"
+$packageName = "@juanblack1/squadscli@$Version"
 
 try {
   Write-Host "Instalando $packageName..." -ForegroundColor Cyan
@@ -113,8 +113,8 @@ try {
   Write-Host "Workspace: $Workspace" -ForegroundColor DarkGray
 
   if (-not $NoLaunch) {
-    Write-Host "Abrindo software-factory console..." -ForegroundColor Cyan
-    & software-factory console --workspace $Workspace
+    Write-Host "Abrindo squadscli console..." -ForegroundColor Cyan
+    & squadscli console --workspace $Workspace
   }
 } finally {
   Remove-Item $tempConfig -Force -ErrorAction SilentlyContinue
