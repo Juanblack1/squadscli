@@ -56,6 +56,7 @@ type ConsoleMessage = {
   kind: MessageKind;
   title: string;
   body: string;
+  createdAt: string;
 };
 
 const STAGE_PRESETS: Record<string, { mode: RunMode; stage: RunStage }> = {
@@ -97,6 +98,29 @@ const COMMAND_SUGGESTIONS: CommandSuggestion[] = [
   { command: "/help", description: "mostra a ajuda completa" },
 ];
 
+const TRACK_RECIPES: Record<ConsoleTrack, string[]> = {
+  build: [
+    "implemente a melhoria no onboarding e rode os testes",
+    "corrija o erro que ocorre ao selecionar squad pelo app desktop",
+    "adicione uma nova feature e deixe pronta para PR",
+  ],
+  plan: [
+    "planeje a refatoracao da selecao de squad para web e desktop",
+    "descreva a arquitetura para suportar multiplos runtimes de squad",
+    "quero um PRD curto para melhorar a UX da console",
+  ],
+  review: [
+    "revise este fluxo como code review e aponte riscos reais",
+    "avalie regressao na troca de squad e lacunas de teste",
+    "faça uma review de seguranca antes do release",
+  ],
+  autonomy: [
+    "leve esta melhoria de ponta a ponta e valide tudo no final",
+    "resolva a issue inteira e retorne com build e smoke feitos",
+    "faça a rodada completa de implementacao e qualidade",
+  ],
+};
+
 function parseSlashCommand(line: string): SlashCommand {
   const trimmed = line.trim().slice(1);
   const [name = "", ...rest] = trimmed.split(" ");
@@ -118,6 +142,13 @@ function formatDate(value: string) {
 
 function formatJson(value: unknown) {
   return JSON.stringify(value, null, 2);
+}
+
+function formatClock(value: string) {
+  return new Date(value).toLocaleTimeString("pt-BR", {
+    hour: "2-digit",
+    minute: "2-digit",
+  });
 }
 
 function truncateLines(text: string, maxLines = 12) {
@@ -196,6 +227,13 @@ function resolveSquadInput(inputValue: string, currentSquad: string, availableSq
   return { action: "invalid" as const };
 }
 
+function messageGlyph(kind: MessageKind) {
+  if (kind === "error") return "x";
+  if (kind === "result") return "+";
+  if (kind === "user") return ">";
+  return "~";
+}
+
 function resolveTrack(session: SessionState): ConsoleTrack {
   if (session.mode === "review" || session.stage === "review") {
     return "review";
@@ -254,14 +292,36 @@ function getInputSuggestions(inputValue: string, session: SessionState, availabl
 
   const parsed = parseSlashCommand(trimmed);
   if (parsed.name === "squad") {
-    return availableSquads.slice(0, 6).map((item, index) => ({
-      command: `/squad ${index + 1}`,
-      description: `${item.icon} ${item.code}${item.code === session.squad ? " · ativo" : ""}`,
-    }));
+    return [
+      {
+        command: "/squad next",
+        description: `proximo squad apos ${session.squad}`,
+      },
+      {
+        command: "/squad prev",
+        description: `squad anterior a ${session.squad}`,
+      },
+      ...availableSquads.slice(0, 6).map((item, index) => ({
+        command: `/squad ${index + 1}`,
+        description: `${item.icon} ${item.code}${item.code === session.squad ? " · ativo" : ""}`,
+      })),
+    ].slice(0, 6);
   }
 
   const query = `/${parsed.name}`;
   return COMMAND_SUGGESTIONS.filter((item) => item.command.startsWith(query)).slice(0, 6);
+}
+
+function getPromptRecipes(track: ConsoleTrack, squad: string) {
+  return TRACK_RECIPES[track].map((text) => `${text} [${squad}]`);
+}
+
+function getSquadQuickPicks(currentSquad: string, availableSquads: ReturnType<typeof listAvailableSquadSummaries>) {
+  return availableSquads.slice(0, 5).map((item, index) => ({
+    command: `/squad ${index + 1}`,
+    label: `${item.icon} ${item.code}`,
+    active: item.code === currentSquad,
+  }));
 }
 
 async function getSessionFilePath(workspaceDir: string) {
@@ -379,11 +439,72 @@ function SuggestionList(props: { suggestions: CommandSuggestion[] }) {
   );
 }
 
+function TrackTabs(props: { active: ConsoleTrack }) {
+  const tracks: ConsoleTrack[] = ["build", "plan", "review", "autonomy"];
+
+  return (
+    <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1}>
+      <Text color="gray">Tracks: </Text>
+      {tracks.map((track, index) => (
+        <React.Fragment key={track}>
+          <Text color={props.active === track ? "cyanBright" : "gray"}>{props.active === track ? `[${track}]` : track}</Text>
+          {index < tracks.length - 1 ? <Text color="gray">  </Text> : null}
+        </React.Fragment>
+      ))}
+      <Text color="gray">  Tab alterna build/plan</Text>
+    </Box>
+  );
+}
+
+function PromptRecipeList(props: { track: ConsoleTrack; squad: string; visible: boolean }) {
+  if (!props.visible) {
+    return null;
+  }
+
+  const recipes = getPromptRecipes(props.track, props.squad);
+  return (
+    <Box marginTop={1} flexDirection="column">
+      <Text color="gray">Suggested prompts</Text>
+      {recipes.map((recipe) => (
+        <Text key={recipe} color="gray">- {recipe}</Text>
+      ))}
+    </Box>
+  );
+}
+
+function SquadQuickPicker(props: {
+  currentSquad: string;
+  squads: ReturnType<typeof listAvailableSquadSummaries>;
+  visible: boolean;
+}) {
+  if (!props.visible || props.squads.length === 0) {
+    return null;
+  }
+
+  const picks = getSquadQuickPicks(props.currentSquad, props.squads);
+  return (
+    <Box marginTop={1} flexDirection="column">
+      <Text color="gray">Squad quick picker</Text>
+      <Text color="gray">Use /squad next, /squad prev ou um indice direto.</Text>
+      {picks.map((item) => (
+        <Text key={item.command}>
+          <Text color="cyan">{item.command}</Text>
+          <Text color="gray">  {item.label}</Text>
+          {item.active ? <Text color="green">  ativo</Text> : null}
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
 function MessageView({ message }: { message: ConsoleMessage }) {
   return (
-    <Box flexDirection="column" marginBottom={1}>
-      <Text bold color={statusColor(message.kind)}>[{message.kind}] {message.title}</Text>
-      <Text color={message.kind === "user" ? "white" : "gray"}>{truncateLines(message.body, message.kind === "result" ? 16 : 10)}</Text>
+    <Box marginBottom={1}>
+      <Text color={statusColor(message.kind)}>{messageGlyph(message.kind)}</Text>
+      <Box marginLeft={1} flexDirection="column">
+        <Text bold color={statusColor(message.kind)}>{message.title} <Text color="gray">{message.kind} · {formatClock(message.createdAt)}</Text></Text>
+        <Text color={message.kind === "user" ? "white" : "gray"}>{truncateLines(message.body, message.kind === "result" ? 16 : 10)}</Text>
+      </Box>
     </Box>
   );
 }
@@ -467,6 +588,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   const availableSquads = useMemo(() => listAvailableSquadSummaries(workspaceDir), [workspaceDir]);
   const track = session ? resolveTrack(session) : "build";
   const suggestions = session ? getInputSuggestions(inputValue, session, availableSquads) : [];
+  const promptRecipes = session ? getPromptRecipes(track, session.squad) : [];
   const skills = useMemo(() => {
     if (!session) {
       return [] as string[];
@@ -480,7 +602,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   }, [session, workspaceDir]);
 
   const appendMessage = useCallback((kind: MessageKind, title: string, body: string) => {
-    setMessages((current) => [...current.slice(-24), { id: nextId.current++, kind, title, body }]);
+    setMessages((current) => [...current.slice(-24), { id: nextId.current++, kind, title, body, createdAt: new Date().toISOString() }]);
   }, []);
 
   const reloadSurfaceData = useCallback(async () => {
@@ -503,10 +625,10 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       appendMessage(
         "system",
         "squadscli console",
-        `Workspace: ${workspaceDir}\nSquad: ${initialSession.squad}\nUse /help para ver os comandos, /squad next para alternar ou Ctrl+J/Ctrl+K para trocar rapido.`,
+        `Workspace: ${workspaceDir}\nSquad: ${initialSession.squad}\nUse /help para ver os comandos, /squad next para alternar ou Ctrl+J/Ctrl+K para trocar rapido.\n\n${formatSquadList(availableSquads.slice(0, 5), initialSession.squad)}`,
       );
     })();
-  }, [appendMessage, preferredSquad, reloadSurfaceData, workspaceDir]);
+  }, [appendMessage, availableSquads, preferredSquad, reloadSurfaceData, workspaceDir]);
 
   const updateSession = useCallback(async (updater: (current: SessionState) => SessionState, message?: string) => {
     if (!session) return;
@@ -899,6 +1021,8 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
         <StatusChip label="mode" value={session.dryRun ? "dry-run" : "live"} tone={session.dryRun ? "warning" : "success"} />
       </Box>
 
+      <TrackTabs active={track} />
+
       <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1}>
         <Text color="gray">Quick actions: </Text>
         <Text color="white">Tab build/plan</Text>
@@ -928,7 +1052,10 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
 
         <Panel title={busy ? "Activity · running" : "Activity"} flexGrow={1}>
           {messages.length === 0 ? (
-            <Text color="gray">Sem eventos ainda.</Text>
+            <Box flexDirection="column">
+              <Text color="gray">Sem eventos ainda.</Text>
+              <Text color="gray">Use um brief direto, /build para execucao completa ou /plan para preparar antes.</Text>
+            </Box>
           ) : (
             <Static items={messages.slice(-12)}>
               {(message) => <MessageView key={message.id} message={message} />}
@@ -945,6 +1072,8 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
         <Text color="gray">Prompt {busy ? "· running" : "· ready"} · {formatTrackLabel(track)} · {session.squad}</Text>
         <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /squad next, /provider codex, /stage full-run" />
         <SuggestionList suggestions={suggestions} />
+        <SquadQuickPicker currentSquad={session.squad} squads={availableSquads} visible={!busy && (!inputValue.trim() || inputValue.trim().startsWith("/squad"))} />
+        <PromptRecipeList track={track} squad={session.squad} visible={!inputValue.trim() && !busy && promptRecipes.length > 0} />
       </Box>
     </Box>
   );
