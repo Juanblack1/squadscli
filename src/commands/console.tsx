@@ -45,6 +45,7 @@ type SlashCommand = {
 type MessageKind = "system" | "user" | "result" | "error";
 type SidePanel = "squads" | "providers" | "workflows" | "runs" | "skills";
 type ConsoleTrack = "build" | "plan" | "review" | "autonomy";
+type OverlayMode = "none" | "commands" | "session" | "run";
 type ProviderRuntime = Awaited<ReturnType<typeof runProvidersCommand>>["providers"][number];
 type ModelRuntime = Awaited<ReturnType<typeof runModelsCommand>>["providers"][number];
 
@@ -76,6 +77,9 @@ const STAGE_VALUES: RunStage[] = ["full-run", "prd", "techspec", "tasks", "revie
 const PANEL_ORDER: SidePanel[] = ["squads", "providers", "workflows", "runs", "skills"];
 const HELP_TEXT = [
   "/squad list | /squad next | /squad 2 | /squad software-factory",
+  "/help ou /commands abre a tela de comandos",
+  "/status ou /session abre a tela de sessao",
+  "/dashboard ou /run abre o monitor de execucao",
   "/build | /plan | /review | /autonomy",
   "/provider list | /provider next | /provider 2 | /provider claude",
   "/model list | /model next | /model 2 | /model sonnet | /model auto",
@@ -738,6 +742,127 @@ function MessageView({ message }: { message: ConsoleMessage }) {
   );
 }
 
+function latestMessageTone(kind: MessageKind) {
+  if (kind === "error") return "warning" as const;
+  if (kind === "result") return "success" as const;
+  if (kind === "user") return "accent" as const;
+  return "muted" as const;
+}
+
+function LatestMessageCard(props: { message: ConsoleMessage | null }) {
+  if (!props.message) {
+    return null;
+  }
+
+  return (
+    <Panel title={props.message.title} subtitle={`${props.message.kind} · ${formatClock(props.message.createdAt)}`} tone={latestMessageTone(props.message.kind)}>
+      <Text color={props.message.kind === "error" ? "red" : "gray"}>{truncateLines(props.message.body, 10)}</Text>
+    </Panel>
+  );
+}
+
+function stepStatusGlyph(status: "planned" | "completed" | "failed") {
+  if (status === "completed") return "✓";
+  if (status === "failed") return "x";
+  return "·";
+}
+
+function stepStatusColor(status: "planned" | "completed" | "failed") {
+  if (status === "completed") return "green" as const;
+  if (status === "failed") return "red" as const;
+  return "gray" as const;
+}
+
+function findPrimaryExecution(
+  workflows: Awaited<ReturnType<typeof listWorkflowSummaries>>,
+  recentRuns: Awaited<ReturnType<typeof listRecentRuns>>,
+) {
+  const runningWorkflow = workflows.find((workflow) => workflow.execution?.status === "running")?.execution;
+  if (runningWorkflow) {
+    return runningWorkflow;
+  }
+
+  return recentRuns.find((run) => Boolean(run.execution))?.execution || null;
+}
+
+function RunMonitorView(props: { execution: Awaited<ReturnType<typeof listRecentRuns>>[number]["execution"] | null; busy: boolean }) {
+  if (!props.execution) {
+    return (
+      <Panel title="Run Monitor" subtitle="sem execucao" tone="muted">
+        <Text color="gray">Nenhum run encontrado ainda. Rode um brief para ver o plano do squad e o status da rodada.</Text>
+      </Panel>
+    );
+  }
+
+  return (
+    <Panel title="Run Monitor" subtitle={`${props.execution.workflowName} · ${props.execution.status}${props.busy ? " · live" : ""}`} tone={props.execution.status === "failed" ? "warning" : props.execution.status === "completed" ? "success" : "accent"}>
+      <Text>
+        <Text color="gray">stage</Text> <Text>{props.execution.stage}</Text>
+        <Text color="gray">  provider</Text> <Text>{props.execution.provider}</Text>
+        <Text color="gray">  model</Text> <Text>{props.execution.model || "auto"}</Text>
+      </Text>
+      <Text color="gray">next {props.execution.nextAction || "aguardar conclusao"}</Text>
+      <Box marginTop={1} flexDirection="column">
+        {props.execution.steps.slice(0, 12).map((step) => (
+          <Text key={`${props.execution?.runId}-${step.id}`} color={stepStatusColor(step.status)}>
+            {stepStatusGlyph(step.status)} <Text color="white">{step.agentName || step.name}</Text>
+            <Text color="gray"> · {step.name}</Text>
+          </Text>
+        ))}
+      </Box>
+    </Panel>
+  );
+}
+
+function CommandsOverlay(props: { session: SessionState }) {
+  return (
+    <Panel title="Commands" subtitle="guia rapido" tone="accent">
+      <Text color="gray">{"Fluxo principal: provider -> model -> brief -> Enter"}</Text>
+      <Box marginTop={1} flexDirection="column">
+        {[
+          "/provider list | /provider next | /provider claude",
+          "/model list | /model next | /model sonnet | /model auto",
+          "/squad list | /squad next | /squad software-factory",
+          "/build | /plan | /review | /autonomy",
+          "/doctor | /history | /clear | /exit",
+        ].map((line) => <Text key={line} color="gray">{line}</Text>)}
+      </Box>
+      <Box marginTop={1} flexDirection="column">
+        <Text color="yellowBright">Atalhos</Text>
+        <Text color="gray">Ctrl+G commands · Ctrl+Y session · Ctrl+R run</Text>
+        <Text color="gray">Ctrl+J/K squad · Ctrl+P provider · Ctrl+O model</Text>
+        <Text color="gray">Tab build/plan · Up/Down historico · Esc fecha overlay</Text>
+      </Box>
+      <Text color="gray">Sessao atual: {props.session.squad} · {props.session.provider} · {props.session.model || "auto"}</Text>
+    </Panel>
+  );
+}
+
+function SessionOverlay(props: {
+  session: SessionState;
+  squads: ReturnType<typeof listAvailableSquadSummaries>;
+  providersData: Awaited<ReturnType<typeof runProvidersCommand>> | null;
+  modelsData: Awaited<ReturnType<typeof runModelsCommand>> | null;
+}) {
+  return (
+    <Panel title="Session" subtitle="trocas rapidas" tone="warning">
+      <SidebarSession state={props.session} />
+      <Box marginTop={1} flexDirection="column">
+        <Text color="yellowBright">Squads</Text>
+        {getSquadQuickPicks(props.session.squad, props.squads).map((item) => (
+          <Text key={item.command}>
+            <Text color={item.active ? "magentaBright" : "cyan"}>{item.command}</Text>
+            <Text color="gray">  {item.label}</Text>
+          </Text>
+        ))}
+      </Box>
+      <Box marginTop={1}>
+        <ProviderModelQuickPicker session={props.session} providersData={props.providersData} modelsData={props.modelsData} />
+      </Box>
+    </Panel>
+  );
+}
+
 function SidebarSession({ state }: { state: SessionState }) {
   const rows = [
     ["Squad", state.squad],
@@ -808,7 +933,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   const [modelsData, setModelsData] = useState<Awaited<ReturnType<typeof runModelsCommand>> | null>(null);
   const [workflows, setWorkflows] = useState<Awaited<ReturnType<typeof listWorkflowSummaries>>>([]);
   const [recentRuns, setRecentRuns] = useState<Awaited<ReturnType<typeof listRecentRuns>>>([]);
-  const [panel, setPanel] = useState<SidePanel>("providers");
+  const [overlay, setOverlay] = useState<OverlayMode>("none");
   const [inputValue, setInputValue] = useState("");
   const [busy, setBusy] = useState(false);
   const [messages, setMessages] = useState<ConsoleMessage[]>([]);
@@ -819,6 +944,8 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   const track = session ? resolveTrack(session) : "build";
   const suggestions = session ? getInputSuggestions(inputValue, session, availableSquads, providersData, modelsData) : [];
   const promptRecipes = session ? getPromptRecipes(track, session.squad) : [];
+  const latestMessage = messages[messages.length - 1] || null;
+  const primaryExecution = useMemo(() => findPrimaryExecution(workflows, recentRuns), [recentRuns, workflows]);
   const skills = useMemo(() => {
     if (!session) {
       return [] as string[];
@@ -854,13 +981,8 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       setSession(initialSession);
       await persistState(initialSession);
       await reloadSurfaceData();
-        appendMessage(
-          "system",
-          "squadscli console",
-          `Workspace: ${workspaceDir}\nSquad: ${initialSession.squad}\nProvider: ${initialSession.provider}\n\nComece assim:\n1. /provider list\n2. /model list\n3. digite o brief e pressione Enter\n\n${formatSquadList(availableSquads.slice(0, 5), initialSession.squad)}`,
-        );
       })();
-    }, [appendMessage, availableSquads, preferredSquad, reloadSurfaceData, workspaceDir]);
+    }, [preferredSquad, reloadSurfaceData, workspaceDir]);
 
   const updateSession = useCallback(async (updater: (current: SessionState) => SessionState, message?: string) => {
     if (!session) return;
@@ -882,6 +1004,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     setBusy(true);
+    setOverlay("run");
     appendMessage("user", session.workflowName || "novo workflow", normalizedBrief);
 
     try {
@@ -911,8 +1034,18 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     if (!session) return;
     const command = parseSlashCommand(value);
 
-    if (command.name === "help") {
-      appendMessage("system", "Ajuda", HELP_TEXT);
+    if (command.name === "help" || command.name === "commands") {
+      setOverlay("commands");
+      return;
+    }
+
+    if (command.name === "status" || command.name === "session") {
+      setOverlay("session");
+      return;
+    }
+
+    if (command.name === "dashboard" || command.name === "run") {
+      setOverlay("run");
       return;
     }
 
@@ -930,16 +1063,11 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       return;
     }
 
-    if (command.name === "status") {
-      appendMessage("system", "Sessao", formatJson(session));
-      return;
-    }
-
     if (command.name === "squad") {
       const selection = resolveSquadInput(command.argText, session.squad, availableSquads);
 
       if (selection.action === "list") {
-        appendMessage("system", "Squads", formatSquadList(availableSquads, session.squad));
+        setOverlay("session");
         return;
       }
 
@@ -959,19 +1087,17 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     if (command.name === "squads") {
-      appendMessage("system", "Squads", formatSquadList(availableSquads, session.squad));
+      setOverlay("session");
       return;
     }
 
     if (command.name === "providers") {
-      appendMessage("system", "Providers", providersData ? formatProviderList(providersData.providers, session.provider) : "Carregando providers...");
+      setOverlay("session");
       return;
     }
 
     if (command.name === "models") {
-      const targetProvider = (providersData?.providers.find((item) => item.provider === command.argText)?.provider || session.provider) as ProviderName;
-      const choices = modelsData ? getModelChoices(modelsData.providers, targetProvider) : [];
-      appendMessage("system", `Models ${targetProvider}`, formatModelList(targetProvider, choices, targetProvider === session.provider ? session.model : undefined));
+      setOverlay("session");
       return;
     }
 
@@ -981,7 +1107,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     if (command.name === "history") {
-      appendMessage("system", "Runs recentes", recentRuns.length ? formatJson(recentRuns) : "Nenhum run ainda.");
+      setOverlay("run");
       return;
     }
 
@@ -1014,7 +1140,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       const selection = resolveProviderInput(command.argText, session.provider, providers);
 
       if (selection.action === "list") {
-        appendMessage("system", "Providers", providersData ? formatProviderList(providers, session.provider) : "Carregando providers...");
+        setOverlay("session");
         return;
       }
 
@@ -1038,7 +1164,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       const selection = resolveModelInput(command.argText, session.model, choices);
 
       if (selection.action === "list") {
-        appendMessage("system", `Models ${session.provider}`, formatModelList(session.provider, choices, session.model));
+        setOverlay("session");
         return;
       }
 
@@ -1165,6 +1291,30 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   }, [appendMessage, busy, handleSlashCommand, inputValue, runWorkflow]);
 
   useInput((value, key) => {
+    if (key.escape) {
+      if (overlay !== "none") {
+        setOverlay("none");
+        return;
+      }
+      setInputValue("");
+      return;
+    }
+
+    if (key.ctrl && value === "g") {
+      setOverlay((current) => current === "commands" ? "none" : "commands");
+      return;
+    }
+
+    if (key.ctrl && value === "y") {
+      setOverlay((current) => current === "session" ? "none" : "session");
+      return;
+    }
+
+    if (key.ctrl && value === "r") {
+      setOverlay((current) => current === "run" ? "none" : "run");
+      return;
+    }
+
     if (busy) {
       return;
     }
@@ -1176,11 +1326,6 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
           `Track definido para ${formatTrackLabel(resolveTrack(togglePrimaryTrack(session)))}.`,
         );
       }
-      return;
-    }
-
-    if (key.escape) {
-      setInputValue("");
       return;
     }
 
@@ -1260,71 +1405,40 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   }
 
   return (
-    <Box flexDirection="column">
-      <Box justifyContent="space-between" marginBottom={1}>
-        <Box flexDirection="column">
+    <Box flexDirection="column" alignItems="center">
+      <Box width={100} flexDirection="column">
+        <Box alignItems="center" justifyContent="center" marginTop={1} marginBottom={1} flexDirection="column">
           <Text color="white" bold>SquadsCli</Text>
-          <Text color="gray">console shell for multi-squad execution</Text>
+          <Text color="gray">{path.basename(workspaceDir)} · {session.squad}</Text>
         </Box>
-        <Box flexDirection="column" alignItems="flex-end">
-          <Text color="magentaBright">{path.basename(workspaceDir)}</Text>
-          <Text color="gray">{availableSquads.length} squads · {recentRuns.length} runs</Text>
+
+        <Box justifyContent="center" marginBottom={1} gap={1} flexWrap="wrap">
+          <StatusChip label="provider" value={session.provider} tone={providersData?.providers.find((item) => item.provider === session.provider)?.ready ? "success" : "warning"} />
+          <StatusChip label="model" value={formatCurrentModel(session, modelsData)} tone="muted" />
+          <StatusChip label="track" value={formatTrackLabel(track)} tone={getTrackTone(track)} />
+          <StatusChip label="mode" value={session.dryRun ? "dry-run" : "live"} tone={session.dryRun ? "warning" : "success"} />
         </Box>
-      </Box>
 
-      <Box marginBottom={1} gap={1} flexWrap="wrap">
-        <StatusChip label="track" value={formatTrackLabel(track)} tone={getTrackTone(track)} />
-        <StatusChip label="squad" value={session.squad} />
-        <StatusChip label="provider" value={session.provider} tone={providersData?.providers.find((item) => item.provider === session.provider)?.ready ? "success" : "warning"} />
-        <StatusChip label="model" value={formatCurrentModel(session, modelsData)} tone="muted" />
-        <StatusChip label="stage" value={session.stage} tone="muted" />
-        <StatusChip label="mode" value={session.dryRun ? "dry-run" : "live"} tone={session.dryRun ? "warning" : "success"} />
-      </Box>
-
-      <Box gap={1}>
-        <Panel title="Agora" subtitle="estado atual" width={30} tone="accent">
-          <SidebarSession state={session} />
-          <Box marginTop={1} flexDirection="column">
-            <Text color="gray">1. /provider list</Text>
-            <Text color="gray">2. /model list</Text>
-            <Text color="gray">3. escreva o brief + Enter</Text>
-            <Text color="gray">Ctrl+J/K troca squad</Text>
-            <Text color="gray">Ctrl+P provider · Ctrl+O model</Text>
+        <Panel title="Prompt" subtitle={busy ? "running" : "ready"} tone="default">
+          <Text color="gray">Tela principal minima. Abra comandos, sessao ou run monitor so quando precisar.</Text>
+          <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "magenta"} paddingX={1} flexDirection="column">
+            <Text color="gray">{session.squad} · {session.provider} · {formatCurrentModel(session, modelsData)} · {formatTrackLabel(track)}</Text>
+            <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou digite /provider list, /model list, /help" />
           </Box>
+          {inputValue.trim().startsWith("/") ? <SuggestionList suggestions={suggestions} /> : null}
+          {!inputValue.trim() && !busy ? <Text color="gray">Ex.: melhorar a UX da console e validar tudo antes de publicar</Text> : null}
         </Panel>
 
-        <Box flexDirection="column" flexGrow={1}>
-          <Panel title={busy ? "Prompt" : "Prompt"} subtitle="acao principal" flexGrow={1} tone="default">
-            <TrackTabs active={track} />
-            <Text color="gray">Troque squad, provider e model primeiro. Depois descreva a rodada em linguagem natural e pressione Enter.</Text>
-            <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "magenta"} paddingX={1} flexDirection="column">
-              <Text color="gray">ready {busy ? "· running" : "· idle"} · {formatTrackLabel(track)} · {session.squad} · {session.provider} · {formatCurrentModel(session, modelsData)}</Text>
-              <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /provider list, /model list, /squad next" />
-            </Box>
-            <SuggestionList suggestions={suggestions} />
-            <SquadQuickPicker currentSquad={session.squad} squads={availableSquads} visible={!busy && (!inputValue.trim() || inputValue.trim().startsWith("/squad"))} />
-            <PromptRecipeList track={track} squad={session.squad} visible={!inputValue.trim() && !busy && promptRecipes.length > 0} />
-          </Panel>
+        {overlay === "commands" ? <Box marginTop={1}><CommandsOverlay session={session} /></Box> : null}
+        {overlay === "session" ? <Box marginTop={1}><SessionOverlay session={session} squads={availableSquads} providersData={providersData} modelsData={modelsData} /></Box> : null}
+        {overlay === "run" ? <Box marginTop={1}><RunMonitorView execution={primaryExecution} busy={busy} /></Box> : null}
 
-          <Box marginTop={1}>
-            <Panel title={busy ? "Activity" : "Activity"} subtitle="feedback da execucao" flexGrow={1} tone="success">
-              {messages.length === 0 ? (
-                <Box flexDirection="column">
-                  <Text color="gray">Sem eventos ainda.</Text>
-                  <Text color="gray">Use /provider list e /model list se quiser ajustar a sessao antes da primeira rodada.</Text>
-                </Box>
-              ) : (
-                <Static items={messages.slice(-10)}>
-                  {(message) => <MessageView key={message.id} message={message} />}
-                </Static>
-              )}
-            </Panel>
-          </Box>
+        {overlay === "none" && primaryExecution && (busy || primaryExecution.status === "running") ? <Box marginTop={1}><RunMonitorView execution={primaryExecution} busy={busy} /></Box> : null}
+        {overlay === "none" && (!(primaryExecution && (busy || primaryExecution.status === "running")) && latestMessage) ? <Box marginTop={1}><LatestMessageCard message={latestMessage} /></Box> : null}
+
+        <Box justifyContent="center" marginTop={1}>
+          <Text color="gray">ctrl+g commands   ctrl+y session   ctrl+r run   ctrl+j/k squad   ctrl+p provider   ctrl+o model   esc close</Text>
         </Box>
-
-        <Panel title="Trocar provider / model" subtitle="comandos diretos" width={42} tone="warning">
-          <ProviderModelQuickPicker session={session} providersData={providersData} modelsData={modelsData} />
-        </Panel>
       </Box>
     </Box>
   );
