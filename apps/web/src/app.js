@@ -23,11 +23,12 @@ async function refresh() {
   workflowsOutput.textContent = "Carregando...";
 
   try {
+    const proxyTarget = encodeURIComponent(base);
     const [health, models, providers, workflows] = await Promise.all([
-      fetchJson(`${base}/health`),
-      fetchJson(`${base}/models?workspaceDir=${encodeURIComponent(workspaceDir)}`),
-      fetchJson(`${base}/providers?workspaceDir=${encodeURIComponent(workspaceDir)}`),
-      fetchJson(`${base}/workflows?workspaceDir=${encodeURIComponent(workspaceDir)}`),
+      fetchJson(`/api-proxy/health?target=${proxyTarget}`),
+      fetchJson(`/api-proxy/models?target=${proxyTarget}&workspaceDir=${encodeURIComponent(workspaceDir)}`),
+      fetchJson(`/api-proxy/providers?target=${proxyTarget}&workspaceDir=${encodeURIComponent(workspaceDir)}`),
+      fetchJson(`/api-proxy/workflows?target=${proxyTarget}&workspaceDir=${encodeURIComponent(workspaceDir)}`),
     ]);
 
     healthOutput.textContent = JSON.stringify(health, null, 2);

@@ -404,10 +404,28 @@ async function buildInitialState(workspaceDir: string, options?: { ignorePersist
   };
 }
 
-function Panel(props: { title: string; children: React.ReactNode; width?: number | string; flexGrow?: number }) {
+function toneColor(tone?: "default" | "success" | "warning" | "muted" | "accent") {
+  if (tone === "success") return "greenBright" as const;
+  if (tone === "warning") return "yellowBright" as const;
+  if (tone === "muted") return "gray" as const;
+  if (tone === "accent") return "magentaBright" as const;
+  return "cyanBright" as const;
+}
+
+function Panel(props: {
+  title: string;
+  subtitle?: string;
+  children: React.ReactNode;
+  width?: number | string;
+  flexGrow?: number;
+  tone?: "default" | "success" | "warning" | "muted" | "accent";
+}) {
   return (
     <Box flexDirection="column" width={props.width} flexGrow={props.flexGrow} borderStyle="round" borderColor="gray" paddingX={1} paddingY={0}>
-      <Text bold color="cyanBright">{props.title}</Text>
+      <Box justifyContent="space-between">
+        <Text bold color={toneColor(props.tone)}>{props.title}</Text>
+        {props.subtitle ? <Text color="gray">{props.subtitle}</Text> : null}
+      </Box>
       <Box marginTop={1} flexDirection="column">
         {props.children}
       </Box>
@@ -416,9 +434,11 @@ function Panel(props: { title: string; children: React.ReactNode; width?: number
 }
 
 function StatusChip(props: { label: string; value: string; tone?: "default" | "success" | "warning" | "muted" }) {
-  const tone = props.tone || "default";
-  const color = tone === "success" ? "green" : tone === "warning" ? "yellow" : tone === "muted" ? "gray" : "cyan";
-  return <Text color={color}>[{props.label}: {props.value}]</Text>;
+  return (
+    <Text color={toneColor(props.tone)}>
+      ● <Text color="gray">{props.label}</Text> <Text color="white">{props.value}</Text>
+    </Text>
+  );
 }
 
 function SuggestionList(props: { suggestions: CommandSuggestion[] }) {
@@ -429,9 +449,9 @@ function SuggestionList(props: { suggestions: CommandSuggestion[] }) {
   return (
     <Box marginTop={1} flexDirection="column">
       <Text color="gray">Command palette</Text>
-      {props.suggestions.map((item) => (
+      {props.suggestions.map((item, index) => (
         <Text key={item.command}>
-          <Text color="cyan">{item.command}</Text>
+          <Text color={index === 0 ? "cyanBright" : "cyan"}>{index === 0 ? "> " : "  "}{item.command}</Text>
           <Text color="gray">  {item.description}</Text>
         </Text>
       ))}
@@ -444,10 +464,10 @@ function TrackTabs(props: { active: ConsoleTrack }) {
 
   return (
     <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1}>
-      <Text color="gray">Tracks: </Text>
+      <Text color="gray">Tracks </Text>
       {tracks.map((track, index) => (
         <React.Fragment key={track}>
-          <Text color={props.active === track ? "cyanBright" : "gray"}>{props.active === track ? `[${track}]` : track}</Text>
+          <Text color={props.active === track ? "magentaBright" : "gray"}>{props.active === track ? `[${track}]` : track}</Text>
           {index < tracks.length - 1 ? <Text color="gray">  </Text> : null}
         </React.Fragment>
       ))}
@@ -464,7 +484,7 @@ function PromptRecipeList(props: { track: ConsoleTrack; squad: string; visible: 
   const recipes = getPromptRecipes(props.track, props.squad);
   return (
     <Box marginTop={1} flexDirection="column">
-      <Text color="gray">Suggested prompts</Text>
+      <Text color="gray">Starter prompts</Text>
       {recipes.map((recipe) => (
         <Text key={recipe} color="gray">- {recipe}</Text>
       ))}
@@ -488,7 +508,7 @@ function SquadQuickPicker(props: {
       <Text color="gray">Use /squad next, /squad prev ou um indice direto.</Text>
       {picks.map((item) => (
         <Text key={item.command}>
-          <Text color="cyan">{item.command}</Text>
+          <Text color={item.active ? "magentaBright" : "cyan"}>{item.command}</Text>
           <Text color="gray">  {item.label}</Text>
           {item.active ? <Text color="green">  ativo</Text> : null}
         </Text>
@@ -499,12 +519,11 @@ function SquadQuickPicker(props: {
 
 function MessageView({ message }: { message: ConsoleMessage }) {
   return (
-    <Box marginBottom={1}>
-      <Text color={statusColor(message.kind)}>{messageGlyph(message.kind)}</Text>
-      <Box marginLeft={1} flexDirection="column">
-        <Text bold color={statusColor(message.kind)}>{message.title} <Text color="gray">{message.kind} · {formatClock(message.createdAt)}</Text></Text>
-        <Text color={message.kind === "user" ? "white" : "gray"}>{truncateLines(message.body, message.kind === "result" ? 16 : 10)}</Text>
-      </Box>
+    <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column">
+      <Text bold color={statusColor(message.kind)}>
+        {messageGlyph(message.kind)} {message.title} <Text color="gray">{message.kind} · {formatClock(message.createdAt)}</Text>
+      </Text>
+      <Text color={message.kind === "user" ? "white" : "gray"}>{truncateLines(message.body, message.kind === "result" ? 16 : 10)}</Text>
     </Box>
   );
 }
@@ -525,7 +544,7 @@ function SidebarSession({ state }: { state: SessionState }) {
   return (
     <Box flexDirection="column">
       {rows.map(([label, value]) => (
-        <Text key={label}><Text color="gray">{label}: </Text><Text>{value}</Text></Text>
+        <Text key={label}><Text color="gray">{label}</Text><Text color="gray"> · </Text><Text>{value}</Text></Text>
       ))}
     </Box>
   );
@@ -544,7 +563,7 @@ function SidePanelView(props: {
 
   return (
     <Box flexDirection="column">
-      <Text color="magenta">{header}</Text>
+      <Text color="magentaBright">{header}</Text>
       <Box marginTop={1} flexDirection="column">
         {props.panel === "providers" && props.providersData && props.providersData.providers.map((provider) => (
           <Text key={provider.provider}>
@@ -1004,12 +1023,12 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     <Box flexDirection="column">
       <Box justifyContent="space-between" marginBottom={1}>
         <Box flexDirection="column">
-          <Text color="cyanBright" bold>SquadsCli</Text>
-          <Text color="gray">agent shell for multi-squad execution</Text>
+          <Text color="white" bold>SquadsCli</Text>
+          <Text color="gray">console shell for multi-squad execution</Text>
         </Box>
         <Box flexDirection="column" alignItems="flex-end">
-          <Text color="magenta">{path.basename(workspaceDir)}</Text>
-          <Text color="gray">{availableSquads.length} squads loaded</Text>
+          <Text color="magentaBright">{path.basename(workspaceDir)}</Text>
+          <Text color="gray">{availableSquads.length} squads · {recentRuns.length} runs</Text>
         </Box>
       </Box>
 
@@ -1021,59 +1040,57 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
         <StatusChip label="mode" value={session.dryRun ? "dry-run" : "live"} tone={session.dryRun ? "warning" : "success"} />
       </Box>
 
-      <TrackTabs active={track} />
-
-      <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1}>
-        <Text color="gray">Quick actions: </Text>
-        <Text color="white">Tab build/plan</Text>
-        <Text color="gray">  </Text>
-        <Text color="white">/squad 1</Text>
-        <Text color="gray">  </Text>
-        <Text color="white">/squad next</Text>
-        <Text color="gray">  </Text>
-        <Text color="white">Ctrl+J / Ctrl+K</Text>
-        <Text color="gray">  Left/Right alterna o painel lateral</Text>
-      </Box>
-
       <Box gap={1}>
-        <Panel title="Session" width={36}>
+        <Panel title="Session Rail" subtitle="estado atual" width={34} tone="accent">
           <SidebarSession state={session} />
           <Box marginTop={1} flexDirection="column">
-            <Text color="gray">Tab: alterna build/plan</Text>
-            <Text color="gray">/build /plan /review: troca track</Text>
-            <Text color="gray">Ctrl+J/K: troca squad</Text>
-            <Text color="gray">/squad 1..N: escolhe pelo indice</Text>
-            <Text color="gray">Left/Right: alterna painel direito</Text>
-            <Text color="gray">Up/Down: historico de comandos</Text>
-            <Text color="gray">Esc: limpa input</Text>
-            <Text color="gray">Ctrl+L: limpa feed</Text>
+            <Text color="gray">Tab alterna build/plan</Text>
+            <Text color="gray">Ctrl+J/K troca squad</Text>
+            <Text color="gray">Left/Right alterna contexto</Text>
+            <Text color="gray">Up/Down navega historico</Text>
+            <Text color="gray">Esc limpa input · Ctrl+L limpa feed</Text>
           </Box>
         </Panel>
 
-        <Panel title={busy ? "Activity · running" : "Activity"} flexGrow={1}>
-          {messages.length === 0 ? (
-            <Box flexDirection="column">
-              <Text color="gray">Sem eventos ainda.</Text>
-              <Text color="gray">Use um brief direto, /build para execucao completa ou /plan para preparar antes.</Text>
+        <Box flexDirection="column" flexGrow={1}>
+          <Panel title={busy ? "Prompt Center · running" : "Prompt Center"} subtitle="acao principal" flexGrow={1} tone="default">
+            <TrackTabs active={track} />
+            <Text color="gray">Escreva um brief ou use um slash command. A interface prioriza contexto minimo e execucao rapida.</Text>
+            <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "magenta"} paddingX={1} flexDirection="column">
+              <Text color="gray">Prompt {busy ? "· running" : "· ready"} · {formatTrackLabel(track)} · {session.squad} · {session.provider}</Text>
+              <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /squad next, /provider codex, /stage full-run" />
             </Box>
-          ) : (
-            <Static items={messages.slice(-12)}>
-              {(message) => <MessageView key={message.id} message={message} />}
-            </Static>
-          )}
-        </Panel>
+            <SuggestionList suggestions={suggestions} />
+            <SquadQuickPicker currentSquad={session.squad} squads={availableSquads} visible={!busy && (!inputValue.trim() || inputValue.trim().startsWith("/squad"))} />
+            <PromptRecipeList track={track} squad={session.squad} visible={!inputValue.trim() && !busy && promptRecipes.length > 0} />
+          </Panel>
 
-        <Panel title="Context" width={48}>
+          <Box marginTop={1} gap={1}>
+            <Panel title={busy ? "Live Activity" : "Activity Feed"} subtitle="feedback da execucao" flexGrow={1} tone="success">
+              {messages.length === 0 ? (
+                <Box flexDirection="column">
+                  <Text color="gray">Sem eventos ainda.</Text>
+                  <Text color="gray">Use um brief direto, /build para execucao completa ou /plan para preparar antes.</Text>
+                </Box>
+              ) : (
+                <Static items={messages.slice(-12)}>
+                  {(message) => <MessageView key={message.id} message={message} />}
+                </Static>
+              )}
+            </Panel>
+
+            <Panel title="Hotkeys" subtitle="atalhos" width={32} tone="warning">
+              <Text color="gray">/build /plan /review /autonomy</Text>
+              <Text color="gray">/squad 1..N ou /squad next</Text>
+              <Text color="gray">/provider codex | claude | opencode</Text>
+              <Text color="gray">/skills set a,b · /history · /doctor</Text>
+            </Panel>
+          </Box>
+        </Box>
+
+        <Panel title="Context" subtitle={panel} width={46} tone="muted">
           <SidePanelView panel={panel} squads={availableSquads} currentSquad={session.squad} providersData={providersData} workflows={workflows} recentRuns={recentRuns} skills={skills} />
         </Panel>
-      </Box>
-
-      <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "cyan"} paddingX={1} flexDirection="column">
-        <Text color="gray">Prompt {busy ? "· running" : "· ready"} · {formatTrackLabel(track)} · {session.squad}</Text>
-        <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /squad next, /provider codex, /stage full-run" />
-        <SuggestionList suggestions={suggestions} />
-        <SquadQuickPicker currentSquad={session.squad} squads={availableSquads} visible={!busy && (!inputValue.trim() || inputValue.trim().startsWith("/squad"))} />
-        <PromptRecipeList track={track} squad={session.squad} visible={!inputValue.trim() && !busy && promptRecipes.length > 0} />
       </Box>
     </Box>
   );

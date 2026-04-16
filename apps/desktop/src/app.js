@@ -259,9 +259,9 @@ function renderHomeView() {
   const wrapper = createElement("div", "stream-stack");
 
   const intro = createElement("section", "stream-block intro-block");
-  intro.appendChild(createElement("p", "mini-label", "workspace ready"));
-  intro.appendChild(createElement("h3", "", "Escolha um provider e rode do centro da interface"));
-  intro.appendChild(createElement("p", "block-copy", "A coluna central funciona como uma superfície única de execução. A lateral esquerda concentra histórico e a direita mostra contexto operacional e memória."));
+  intro.appendChild(createElement("p", "mini-label", "start here"));
+  intro.appendChild(createElement("h3", "", "Ajuste o contexto e rode sem disputar atenção com o resto da interface"));
+  intro.appendChild(createElement("p", "block-copy", "O comando principal fica no centro. Sessões, runs e memória continuam disponíveis, mas agora como apoio de contexto em vez de ruído visual."));
   wrapper.appendChild(intro);
 
   const providers = createElement("div", "stream-grid two");
@@ -288,8 +288,8 @@ function renderHomeView() {
 
   const flows = createElement("section", "stream-block");
   const flowsHeader = createElement("div", "section-inline");
-  flowsHeader.appendChild(createElement("h3", "", "Workflows recentes"));
-  flowsHeader.appendChild(createElement("span", "mini-note", "atalhos"));
+  flowsHeader.appendChild(createElement("h3", "", "Continuar um fluxo"));
+  flowsHeader.appendChild(createElement("span", "mini-note", "atalhos prontos"));
   flows.appendChild(flowsHeader);
   const flowGrid = createElement("div", "stream-grid two");
   const workflowItems = snapshot.workflows.slice(0, 4);
@@ -436,12 +436,12 @@ function renderView() {
   viewContent.innerHTML = "";
 
   const views = {
-    home: { kicker: "home", title: "Visão geral", thread: "Workspace pronto", node: renderHomeView() },
-    providers: { kicker: "providers", title: "Providers disponíveis", thread: "Escolha o executor da rodada", node: renderProvidersView() },
-    workflows: { kicker: "workflows", title: "Workflows salvos", thread: "Reabra e continue qualquer fluxo", node: renderWorkflowsView() },
-    runs: { kicker: "runs", title: "Runs do workspace", thread: "Resultados recentes e recuperação rápida", node: renderRunsView() },
-    memory: { kicker: "memory", title: "Memória e handoffs", thread: "Estado durável e próximo passo", node: renderMemoryView() },
-    sessions: { kicker: "sessions", title: "Histórico local de sessões", thread: "Restauração do composer", node: renderSessionsView() },
+    home: { kicker: "home", title: "Visão geral", thread: "Painel mais calmo para abrir, configurar e executar", node: renderHomeView() },
+    providers: { kicker: "providers", title: "Providers disponíveis", thread: "Escolha quem executa a rodada", node: renderProvidersView() },
+    workflows: { kicker: "workflows", title: "Workflows salvos", thread: "Retome uma linha de execução sem reconfigurar tudo", node: renderWorkflowsView() },
+    runs: { kicker: "runs", title: "Runs do workspace", thread: "Resultados recentes e restauração rápida", node: renderRunsView() },
+    memory: { kicker: "memory", title: "Memória e handoffs", thread: "Contexto durável e próximo passo condensado", node: renderMemoryView() },
+    sessions: { kicker: "sessions", title: "Histórico local de sessões", thread: "Recupere o composer com um clique", node: renderSessionsView() },
   };
 
   const selected = views[currentView] || views.home;
@@ -650,5 +650,5 @@ if (!desktopApi) {
   throw new Error("softwareFactoryDesktop bridge unavailable");
 }
 
-appendFeed("system", "SquadsCli Desktop", "Carregando workspace e preparando o workbench visual.");
+appendFeed("system", "SquadsCli Desktop", "Carregando workspace e preparando a shell visual de execução.");
 await refreshSnapshot(() => desktopApi.getBootstrap());

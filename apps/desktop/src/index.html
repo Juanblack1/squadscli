@@ -13,7 +13,7 @@
         <div class="brand-block">
           <div class="brand-mark">SC</div>
           <div>
-            <p class="eyebrow">squadscli</p>
+            <p class="eyebrow">squadscli desktop</p>
             <h1>Workbench</h1>
           </div>
         </div>
@@ -48,59 +48,51 @@
         <section class="sidebar-section history-section">
           <div class="section-topline">
             <span class="mini-label">recent sessions</span>
+            <span class="mini-note">restore</span>
           </div>
           <div id="sidebar-sessions" class="sidebar-list"></div>
         </section>
       </aside>
 
-      <main class="center-column">
-        <header class="topbar panel">
-          <div>
-            <p id="view-kicker" class="eyebrow dim">home</p>
-            <h2 id="view-title">Visão geral</h2>
+      <main class="workspace-column">
+        <header class="hero panel">
+          <div class="hero-copy">
+            <p class="eyebrow dim">command shell for squads</p>
+            <h2>Escolha o contexto, escreva o brief e rode do centro da interface.</h2>
+            <p class="hero-text">A experiencia prioriza uma acao principal clara, contexto secundario discreto e leitura rapida do estado operacional.</p>
           </div>
-          <div class="topbar-meta">
-            <span id="default-provider" class="meta-chip">default</span>
-            <span id="status-badge" class="meta-chip idle">idle</span>
+          <div class="hero-aside">
+            <p class="mini-label">surface</p>
+            <div class="hero-kpis">
+              <div class="hero-kpi">
+                <span class="hero-kpi-value" id="ready-count">0</span>
+                <span class="hero-kpi-label">providers prontos</span>
+              </div>
+              <div class="hero-kpi">
+                <span class="hero-kpi-value" id="workflow-count">0</span>
+                <span class="hero-kpi-label">workflows</span>
+              </div>
+              <div class="hero-kpi">
+                <span class="hero-kpi-value" id="run-count">0</span>
+                <span class="hero-kpi-label">runs</span>
+              </div>
+            </div>
           </div>
         </header>
 
-        <section class="thread panel">
-          <div class="thread-header">
+        <section class="command-center panel">
+          <div class="command-topline">
             <div>
-              <p class="eyebrow dim">context thread</p>
-              <h3 id="thread-title">Workspace pronto</h3>
-            </div>
-            <div class="metrics-row">
-              <div class="metric-pill">
-                <span class="metric-value" id="ready-count">0</span>
-                <span class="metric-label">providers</span>
-              </div>
-              <div class="metric-pill">
-                <span class="metric-value" id="workflow-count">0</span>
-                <span class="metric-label">workflows</span>
-              </div>
-              <div class="metric-pill">
-                <span class="metric-value" id="run-count">0</span>
-                <span class="metric-label">runs</span>
-              </div>
-            </div>
-          </div>
-
-          <div id="view-content" class="view-stream"></div>
-          <div id="feed" class="activity-stream"></div>
-        </section>
-
-        <section class="composer panel">
-          <div class="composer-header">
-            <div>
-              <p class="eyebrow dim">composer</p>
+              <p class="eyebrow dim">prompt center</p>
               <h3>Nova rodada</h3>
             </div>
-            <button id="run-button" class="primary">Rodar agora</button>
+            <div class="command-statuses">
+              <span id="default-provider" class="meta-chip">default</span>
+              <span id="status-badge" class="meta-chip idle">idle</span>
+            </div>
           </div>
 
-          <div class="composer-grid">
+          <div class="composer-grid compact-grid">
             <label>
               <span>Squad</span>
               <select id="squad-select"></select>
@@ -154,6 +146,39 @@
             <span>Brief</span>
             <textarea id="brief-input" placeholder="Descreva o objetivo da rodada para este workspace..."></textarea>
           </label>
+
+          <div class="composer-actions">
+            <div class="composer-hints">
+              <span class="hint-chip">estado salvo automaticamente</span>
+              <span class="hint-chip">doctor antes do release</span>
+              <span class="hint-chip">dry-run para validar rota</span>
+            </div>
+            <button id="run-button" class="primary">Rodar agora</button>
+          </div>
+        </section>
+
+        <section class="content-grid">
+          <section class="viewport panel">
+            <div class="panel-header">
+              <div>
+                <p id="view-kicker" class="eyebrow dim">home</p>
+                <h3 id="view-title">Visão geral</h3>
+              </div>
+              <p id="thread-title" class="panel-summary">Workspace pronto</p>
+            </div>
+            <div id="view-content" class="view-stream"></div>
+          </section>
+
+          <section class="activity panel">
+            <div class="panel-header">
+              <div>
+                <p class="eyebrow dim">activity</p>
+                <h3>Thread operacional</h3>
+              </div>
+              <p class="panel-summary">feedback de execucao, doctor e retomadas</p>
+            </div>
+            <div id="feed" class="activity-stream"></div>
+          </section>
         </section>
       </main>
 
