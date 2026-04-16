@@ -30,6 +30,7 @@ function printHelp() {
   console.log(`squadscli
 
 Commands:
+  squadscli
   squadscli init [--target path] [--force]
   squadscli console [--workspace path] [--squad code]
   squadscli desktop [--workspace path]
@@ -139,7 +140,12 @@ async function readBrief(flags: { brief?: string; briefFile?: string }) {
 async function main() {
   const [command, ...rest] = process.argv.slice(2);
 
-  if (!command || command === "--help" || command === "-h") {
+  if (!command) {
+    await runConsoleCommand(process.cwd());
+    return;
+  }
+
+  if (command === "--help" || command === "-h") {
     printHelp();
     return;
   }
