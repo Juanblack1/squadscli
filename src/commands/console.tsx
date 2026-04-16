@@ -44,6 +44,12 @@ type SlashCommand = {
 
 type MessageKind = "system" | "user" | "result" | "error";
 type SidePanel = "squads" | "providers" | "workflows" | "runs" | "skills";
+type ConsoleTrack = "build" | "plan" | "review" | "autonomy";
+
+type CommandSuggestion = {
+  command: string;
+  description: string;
+};
 
 type ConsoleMessage = {
   id: number;
@@ -67,6 +73,7 @@ const STAGE_VALUES: RunStage[] = ["full-run", "prd", "techspec", "tasks", "revie
 const PANEL_ORDER: SidePanel[] = ["squads", "providers", "workflows", "runs", "skills"];
 const HELP_TEXT = [
   "/squad list | /squad next | /squad 2 | /squad software-factory",
+  "/build | /plan | /review | /autonomy",
   "/provider codex | claude | opencode",
   "/model auto | gpt-5.4 | sonnet",
   "/workflow onboarding | auto",
@@ -76,6 +83,19 @@ const HELP_TEXT = [
   "/doctor | /providers | /models | /workflows | /history | /reset | /exit",
   "Digite um brief direto para executar com o estado atual da sessao.",
 ].join("\n");
+
+const COMMAND_SUGGESTIONS: CommandSuggestion[] = [
+  { command: "/build", description: "ativa o fluxo padrao de execucao completa" },
+  { command: "/plan", description: "ativa o fluxo de planejamento rapido via PRD" },
+  { command: "/review", description: "ativa o modo de review antes de executar" },
+  { command: "/squad next", description: "troca rapidamente para o proximo squad" },
+  { command: "/squad list", description: "lista os squads disponiveis com indice" },
+  { command: "/provider codex", description: "troca o provider da sessao" },
+  { command: "/workflow auto", description: "usa workflow automatico para a proxima execucao" },
+  { command: "/history", description: "abre o painel de runs recentes" },
+  { command: "/doctor", description: "verifica o ambiente atual da sessao" },
+  { command: "/help", description: "mostra a ajuda completa" },
+];
 
 function parseSlashCommand(line: string): SlashCommand {
   const trimmed = line.trim().slice(1);
@@ -176,6 +196,74 @@ function resolveSquadInput(inputValue: string, currentSquad: string, availableSq
   return { action: "invalid" as const };
 }
 
+function resolveTrack(session: SessionState): ConsoleTrack {
+  if (session.mode === "review" || session.stage === "review") {
+    return "review";
+  }
+
+  if (session.mode === "autonomy" || session.stage === "autonomy") {
+    return "autonomy";
+  }
+
+  return session.stage === "full-run" ? "build" : "plan";
+}
+
+function applyTrack(session: SessionState, track: ConsoleTrack): SessionState {
+  if (track === "build") {
+    return { ...session, mode: "full-run", stage: "full-run" };
+  }
+
+  if (track === "plan") {
+    return { ...session, mode: "full-run", stage: "prd" };
+  }
+
+  if (track === "review") {
+    return { ...session, mode: "review", stage: "review" };
+  }
+
+  return { ...session, mode: "autonomy", stage: "autonomy" };
+}
+
+function togglePrimaryTrack(session: SessionState): SessionState {
+  return applyTrack(session, resolveTrack(session) === "plan" ? "build" : "plan");
+}
+
+function getTrackTone(track: ConsoleTrack) {
+  if (track === "build") return "success" as const;
+  if (track === "plan") return "warning" as const;
+  if (track === "review") return "default" as const;
+  return "muted" as const;
+}
+
+function formatTrackLabel(track: ConsoleTrack) {
+  if (track === "build") return "build";
+  if (track === "plan") return "plan";
+  if (track === "review") return "review";
+  return "autonomy";
+}
+
+function getInputSuggestions(inputValue: string, session: SessionState, availableSquads: ReturnType<typeof listAvailableSquadSummaries>) {
+  const trimmed = inputValue.trim();
+  if (!trimmed.startsWith("/")) {
+    return [] as CommandSuggestion[];
+  }
+
+  if (trimmed === "/" || trimmed.length === 1) {
+    return COMMAND_SUGGESTIONS.slice(0, 6);
+  }
+
+  const parsed = parseSlashCommand(trimmed);
+  if (parsed.name === "squad") {
+    return availableSquads.slice(0, 6).map((item, index) => ({
+      command: `/squad ${index + 1}`,
+      description: `${item.icon} ${item.code}${item.code === session.squad ? " · ativo" : ""}`,
+    }));
+  }
+
+  const query = `/${parsed.name}`;
+  return COMMAND_SUGGESTIONS.filter((item) => item.command.startsWith(query)).slice(0, 6);
+}
+
 async function getSessionFilePath(workspaceDir: string) {
   const config = await loadSoftwareFactoryConfig(workspaceDir);
   return path.join(workspaceDir, config.outputDir, "console-session.json");
@@ -273,6 +361,24 @@ function StatusChip(props: { label: string; value: string; tone?: "default" | "s
   return <Text color={color}>[{props.label}: {props.value}]</Text>;
 }
 
+function SuggestionList(props: { suggestions: CommandSuggestion[] }) {
+  if (props.suggestions.length === 0) {
+    return null;
+  }
+
+  return (
+    <Box marginTop={1} flexDirection="column">
+      <Text color="gray">Command palette</Text>
+      {props.suggestions.map((item) => (
+        <Text key={item.command}>
+          <Text color="cyan">{item.command}</Text>
+          <Text color="gray">  {item.description}</Text>
+        </Text>
+      ))}
+    </Box>
+  );
+}
+
 function MessageView({ message }: { message: ConsoleMessage }) {
   return (
     <Box flexDirection="column" marginBottom={1}>
@@ -359,6 +465,8 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const nextId = useRef(1);
   const availableSquads = useMemo(() => listAvailableSquadSummaries(workspaceDir), [workspaceDir]);
+  const track = session ? resolveTrack(session) : "build";
+  const suggestions = session ? getInputSuggestions(inputValue, session, availableSquads) : [];
   const skills = useMemo(() => {
     if (!session) {
       return [] as string[];
@@ -451,6 +559,20 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
 
     if (command.name === "help") {
       appendMessage("system", "Ajuda", HELP_TEXT);
+      return;
+    }
+
+    if (command.name === "build" || command.name === "plan" || command.name === "review" || command.name === "autonomy") {
+      const nextTrack = command.name as ConsoleTrack;
+      if (!command.argText) {
+        const nextSession = applyTrack(session, nextTrack);
+        setSession(nextSession);
+        await persistState(nextSession);
+        appendMessage("system", "Track atualizado", `Track definido para ${formatTrackLabel(nextTrack)}.`);
+        return;
+      }
+
+      await runWorkflow(command.argText, { mode: applyTrack(session, nextTrack).mode, stage: applyTrack(session, nextTrack).stage });
       return;
     }
 
@@ -629,7 +751,10 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     if (command.name in STAGE_PRESETS) {
       const preset = STAGE_PRESETS[command.name];
       if (!command.argText) {
-        appendMessage("error", "Brief obrigatorio", `Use /${command.name} <brief>.`);
+        await updateSession(
+          (current) => ({ ...current, mode: preset.mode, stage: preset.stage }),
+          `Preset definido para ${command.name}. Agora o proximo brief direto usa ${preset.stage}.`,
+        );
         return;
       }
       await runWorkflow(command.argText, preset);
@@ -670,7 +795,12 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     if (key.tab) {
-      setPanel((current) => cyclePanel(current, 1));
+      if (session) {
+        void updateSession(
+          (current) => togglePrimaryTrack(current),
+          `Track definido para ${formatTrackLabel(resolveTrack(togglePrimaryTrack(session)))}.`,
+        );
+      }
       return;
     }
 
@@ -681,6 +811,16 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
 
     if (key.ctrl && value === "l") {
       setMessages([]);
+      return;
+    }
+
+    if (key.leftArrow && !inputValue) {
+      setPanel((current) => cyclePanel(current, -1));
+      return;
+    }
+
+    if (key.rightArrow && !inputValue) {
+      setPanel((current) => cyclePanel(current, 1));
       return;
     }
 
@@ -752,6 +892,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       </Box>
 
       <Box marginBottom={1} gap={1} flexWrap="wrap">
+        <StatusChip label="track" value={formatTrackLabel(track)} tone={getTrackTone(track)} />
         <StatusChip label="squad" value={session.squad} />
         <StatusChip label="provider" value={session.provider} tone={providersData?.providers.find((item) => item.provider === session.provider)?.ready ? "success" : "warning"} />
         <StatusChip label="stage" value={session.stage} tone="muted" />
@@ -759,22 +900,26 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       </Box>
 
       <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1}>
-        <Text color="gray">Quick switch: </Text>
+        <Text color="gray">Quick actions: </Text>
+        <Text color="white">Tab build/plan</Text>
+        <Text color="gray">  </Text>
         <Text color="white">/squad 1</Text>
         <Text color="gray">  </Text>
         <Text color="white">/squad next</Text>
         <Text color="gray">  </Text>
         <Text color="white">Ctrl+J / Ctrl+K</Text>
-        <Text color="gray">  Tab alterna o painel lateral</Text>
+        <Text color="gray">  Left/Right alterna o painel lateral</Text>
       </Box>
 
       <Box gap={1}>
         <Panel title="Session" width={36}>
           <SidebarSession state={session} />
           <Box marginTop={1} flexDirection="column">
+            <Text color="gray">Tab: alterna build/plan</Text>
+            <Text color="gray">/build /plan /review: troca track</Text>
             <Text color="gray">Ctrl+J/K: troca squad</Text>
             <Text color="gray">/squad 1..N: escolhe pelo indice</Text>
-            <Text color="gray">Tab: alterna painel direito</Text>
+            <Text color="gray">Left/Right: alterna painel direito</Text>
             <Text color="gray">Up/Down: historico de comandos</Text>
             <Text color="gray">Esc: limpa input</Text>
             <Text color="gray">Ctrl+L: limpa feed</Text>
@@ -797,8 +942,9 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       </Box>
 
       <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "cyan"} paddingX={1} flexDirection="column">
-        <Text color="gray">Prompt {busy ? "· running" : "· ready"}</Text>
+        <Text color="gray">Prompt {busy ? "· running" : "· ready"} · {formatTrackLabel(track)} · {session.squad}</Text>
         <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /squad next, /provider codex, /stage full-run" />
+        <SuggestionList suggestions={suggestions} />
       </Box>
     </Box>
   );
