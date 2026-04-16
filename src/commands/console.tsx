@@ -45,6 +45,8 @@ type SlashCommand = {
 type MessageKind = "system" | "user" | "result" | "error";
 type SidePanel = "squads" | "providers" | "workflows" | "runs" | "skills";
 type ConsoleTrack = "build" | "plan" | "review" | "autonomy";
+type ProviderRuntime = Awaited<ReturnType<typeof runProvidersCommand>>["providers"][number];
+type ModelRuntime = Awaited<ReturnType<typeof runModelsCommand>>["providers"][number];
 
 type CommandSuggestion = {
   command: string;
@@ -75,25 +77,27 @@ const PANEL_ORDER: SidePanel[] = ["squads", "providers", "workflows", "runs", "s
 const HELP_TEXT = [
   "/squad list | /squad next | /squad 2 | /squad software-factory",
   "/build | /plan | /review | /autonomy",
-  "/provider codex | claude | opencode",
-  "/model auto | gpt-5.4 | sonnet",
+  "/provider list | /provider next | /provider 2 | /provider claude",
+  "/model list | /model next | /model 2 | /model sonnet | /model auto",
   "/workflow onboarding | auto",
   "/stage prd | techspec | tasks | full-run | review | autonomy",
   "/skills set api-design,code-review | /skills clear",
   "/dry-run on | off",
   "/doctor | /providers | /models | /workflows | /history | /reset | /exit",
+  "Providers e models tambem podem ser listados pelos comandos /providers e /models.",
   "Digite um brief direto para executar com o estado atual da sessao.",
 ].join("\n");
 
 const COMMAND_SUGGESTIONS: CommandSuggestion[] = [
   { command: "/build", description: "ativa o fluxo padrao de execucao completa" },
   { command: "/plan", description: "ativa o fluxo de planejamento rapido via PRD" },
-  { command: "/review", description: "ativa o modo de review antes de executar" },
+  { command: "/provider list", description: "lista providers e mostra como trocar" },
+  { command: "/model list", description: "lista modelos do provider atual" },
   { command: "/squad next", description: "troca rapidamente para o proximo squad" },
   { command: "/squad list", description: "lista os squads disponiveis com indice" },
-  { command: "/provider codex", description: "troca o provider da sessao" },
+  { command: "/provider claude", description: "troca o provider da sessao" },
   { command: "/workflow auto", description: "usa workflow automatico para a proxima execucao" },
-  { command: "/history", description: "abre o painel de runs recentes" },
+  { command: "/history", description: "mostra runs recentes" },
   { command: "/doctor", description: "verifica o ambiente atual da sessao" },
   { command: "/help", description: "mostra a ajuda completa" },
 ];
@@ -280,7 +284,13 @@ function formatTrackLabel(track: ConsoleTrack) {
   return "autonomy";
 }
 
-function getInputSuggestions(inputValue: string, session: SessionState, availableSquads: ReturnType<typeof listAvailableSquadSummaries>) {
+function getInputSuggestions(
+  inputValue: string,
+  session: SessionState,
+  availableSquads: ReturnType<typeof listAvailableSquadSummaries>,
+  providersData: Awaited<ReturnType<typeof runProvidersCommand>> | null,
+  modelsData: Awaited<ReturnType<typeof runModelsCommand>> | null,
+) {
   const trimmed = inputValue.trim();
   if (!trimmed.startsWith("/")) {
     return [] as CommandSuggestion[];
@@ -308,6 +318,29 @@ function getInputSuggestions(inputValue: string, session: SessionState, availabl
     ].slice(0, 6);
   }
 
+  if (parsed.name === "provider" || parsed.name === "p") {
+    return [
+      { command: "/provider list", description: `providers disponiveis · atual ${session.provider}` },
+      { command: "/provider next", description: "troca para o proximo provider pronto" },
+      ...(providersData?.providers.slice(0, 4).map((item, index) => ({
+        command: `/provider ${index + 1}`,
+        description: `${item.provider}${item.provider === session.provider ? " · ativo" : ""}${item.ready ? " · ready" : " · not ready"}`,
+      })) || []),
+    ].slice(0, 6);
+  }
+
+  if (parsed.name === "model" || parsed.name === "m") {
+    const modelChoices = modelsData ? getModelChoices(modelsData.providers, session.provider) : ["auto"];
+    return [
+      { command: "/model list", description: `modelos para ${session.provider}` },
+      { command: "/model next", description: `proximo modelo do provider ${session.provider}` },
+      ...modelChoices.slice(0, 4).map((item, index) => ({
+        command: `/model ${index + 1}`,
+        description: `${item}${item === (session.model || "auto") ? " · ativo" : ""}`,
+      })),
+    ].slice(0, 6);
+  }
+
   const query = `/${parsed.name}`;
   return COMMAND_SUGGESTIONS.filter((item) => item.command.startsWith(query)).slice(0, 6);
 }
@@ -322,6 +355,140 @@ function getSquadQuickPicks(currentSquad: string, availableSquads: ReturnType<ty
     label: `${item.icon} ${item.code}`,
     active: item.code === currentSquad,
   }));
+}
+
+function formatCurrentModel(session: SessionState, modelsData: Awaited<ReturnType<typeof runModelsCommand>> | null) {
+  return session.model || modelsData?.providers.find((item) => item.provider === session.provider)?.activeModel || "auto";
+}
+
+function getModelChoices(models: ModelRuntime[], provider: ProviderName) {
+  const providerBlock = models.find((item) => item.provider === provider);
+  return Array.from(
+    new Set(
+      ["auto", providerBlock?.activeModel || "", ...(providerBlock?.suggestedModels || [])]
+        .map((item) => item.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function cycleProvider(currentProvider: ProviderName, step: number, providers: ProviderRuntime[]) {
+  const candidates = providers.some((item) => item.ready) ? providers.filter((item) => item.ready) : providers;
+  if (candidates.length === 0) {
+    return currentProvider;
+  }
+
+  const index = candidates.findIndex((item) => item.provider === currentProvider);
+  const baseIndex = index >= 0 ? index : 0;
+  return candidates[(baseIndex + step + candidates.length) % candidates.length]?.provider || currentProvider;
+}
+
+function cycleModel(currentModel: string | undefined, step: number, choices: string[]) {
+  if (choices.length === 0) {
+    return currentModel || "auto";
+  }
+
+  const effectiveCurrent = currentModel || "auto";
+  const index = choices.findIndex((item) => item === effectiveCurrent);
+  const baseIndex = index >= 0 ? index : 0;
+  return choices[(baseIndex + step + choices.length) % choices.length] || "auto";
+}
+
+function resolveProviderInput(inputValue: string, currentProvider: ProviderName, providers: ProviderRuntime[]) {
+  const normalized = inputValue.trim().toLowerCase();
+  if (!normalized || normalized === "list") {
+    return { action: "list" as const };
+  }
+
+  if (normalized === "next") {
+    return { action: "select" as const, provider: cycleProvider(currentProvider, 1, providers) };
+  }
+
+  if (normalized === "prev" || normalized === "previous") {
+    return { action: "select" as const, provider: cycleProvider(currentProvider, -1, providers) };
+  }
+
+  const asIndex = Number(normalized);
+  if (Number.isInteger(asIndex) && asIndex >= 1 && asIndex <= providers.length) {
+    return { action: "select" as const, provider: providers[asIndex - 1]?.provider };
+  }
+
+  const exact = providers.find((item) => item.provider.toLowerCase() === normalized);
+  if (exact) {
+    return { action: "select" as const, provider: exact.provider };
+  }
+
+  const byPrefix = providers.filter((item) => item.provider.toLowerCase().startsWith(normalized));
+  if (byPrefix.length === 1) {
+    return { action: "select" as const, provider: byPrefix[0].provider };
+  }
+
+  return { action: "invalid" as const };
+}
+
+function resolveModelInput(inputValue: string, currentModel: string | undefined, choices: string[]) {
+  const normalized = inputValue.trim().toLowerCase();
+  if (!normalized || normalized === "list") {
+    return { action: "list" as const };
+  }
+
+  if (normalized === "next") {
+    return { action: "select" as const, model: cycleModel(currentModel, 1, choices) };
+  }
+
+  if (normalized === "prev" || normalized === "previous") {
+    return { action: "select" as const, model: cycleModel(currentModel, -1, choices) };
+  }
+
+  if (normalized === "default" || normalized === "reset") {
+    return { action: "select" as const, model: "auto" };
+  }
+
+  const asIndex = Number(normalized);
+  if (Number.isInteger(asIndex) && asIndex >= 1 && asIndex <= choices.length) {
+    return { action: "select" as const, model: choices[asIndex - 1] };
+  }
+
+  const exact = choices.find((item) => item.toLowerCase() === normalized);
+  if (exact) {
+    return { action: "select" as const, model: exact };
+  }
+
+  const byPrefix = choices.filter((item) => item.toLowerCase().startsWith(normalized));
+  if (byPrefix.length === 1) {
+    return { action: "select" as const, model: byPrefix[0] };
+  }
+
+  return { action: "invalid" as const };
+}
+
+function formatProviderList(providers: ProviderRuntime[], currentProvider: ProviderName) {
+  if (providers.length === 0) {
+    return "Nenhum provider detectado.";
+  }
+
+  return [
+    "Troca com /provider <numero|nome|next|prev>.",
+    ...providers.map((provider, index) => {
+      const marker = provider.provider === currentProvider ? "*" : " ";
+      const status = provider.ready ? "ready" : "not ready";
+      const model = provider.activeModel ? ` · ${provider.activeModel}` : "";
+      return `${marker} ${index + 1}. ${provider.provider} [${status}]${model}`;
+    }),
+  ].join("\n");
+}
+
+function formatModelList(provider: ProviderName, choices: string[], currentModel: string | undefined) {
+  if (choices.length === 0) {
+    return `Nenhum modelo encontrado para ${provider}.`;
+  }
+
+  const effectiveCurrent = currentModel || "auto";
+  return [
+    `Provider atual: ${provider}`,
+    "Troca com /model <numero|nome|next|prev>.",
+    ...choices.map((model, index) => `${model === effectiveCurrent ? "*" : " "} ${index + 1}. ${model}`),
+  ].join("\n");
 }
 
 async function getSessionFilePath(workspaceDir: string) {
@@ -517,6 +684,49 @@ function SquadQuickPicker(props: {
   );
 }
 
+function ProviderModelQuickPicker(props: {
+  session: SessionState;
+  providersData: Awaited<ReturnType<typeof runProvidersCommand>> | null;
+  modelsData: Awaited<ReturnType<typeof runModelsCommand>> | null;
+}) {
+  const providers = props.providersData?.providers || [];
+  const modelChoices = props.modelsData ? getModelChoices(props.modelsData.providers, props.session.provider) : ["auto"];
+  const effectiveModel = formatCurrentModel(props.session, props.modelsData);
+  const modelNotes = props.modelsData?.providers.find((item) => item.provider === props.session.provider)?.notes;
+
+  return (
+    <Box flexDirection="column">
+      <Text color="gray">Troca rapida</Text>
+      <Text color="gray">/provider list, /provider next, /provider 2, /provider claude</Text>
+      <Text color="gray">/model list, /model next, /model 2, /model sonnet, /model auto</Text>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text color="yellowBright">Providers</Text>
+        {providers.length === 0 ? <Text color="gray">Carregando providers...</Text> : providers.map((provider, index) => (
+          <Text key={provider.provider}>
+            <Text color={provider.provider === props.session.provider ? "magentaBright" : provider.ready ? "green" : "gray"}>{provider.provider === props.session.provider ? "*" : " "}</Text>
+            <Text color="gray"> {index + 1}. </Text>
+            <Text>{provider.provider}</Text>
+            <Text color="gray"> {provider.ready ? "ready" : "not ready"}</Text>
+          </Text>
+        ))}
+      </Box>
+
+      <Box marginTop={1} flexDirection="column">
+        <Text color="yellowBright">Modelos de {props.session.provider}</Text>
+        {modelChoices.map((model, index) => (
+          <Text key={`${props.session.provider}-${model}`}>
+            <Text color={model === effectiveModel ? "magentaBright" : "gray"}>{model === effectiveModel ? "*" : " "}</Text>
+            <Text color="gray"> {index + 1}. </Text>
+            <Text>{model}</Text>
+          </Text>
+        ))}
+        {modelNotes ? <Text color="gray">{modelNotes}</Text> : null}
+      </Box>
+    </Box>
+  );
+}
+
 function MessageView({ message }: { message: ConsoleMessage }) {
   return (
     <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1} flexDirection="column">
@@ -595,6 +805,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   const { exit } = useApp();
   const [session, setSession] = useState<SessionState | null>(null);
   const [providersData, setProvidersData] = useState<Awaited<ReturnType<typeof runProvidersCommand>> | null>(null);
+  const [modelsData, setModelsData] = useState<Awaited<ReturnType<typeof runModelsCommand>> | null>(null);
   const [workflows, setWorkflows] = useState<Awaited<ReturnType<typeof listWorkflowSummaries>>>([]);
   const [recentRuns, setRecentRuns] = useState<Awaited<ReturnType<typeof listRecentRuns>>>([]);
   const [panel, setPanel] = useState<SidePanel>("providers");
@@ -606,7 +817,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   const nextId = useRef(1);
   const availableSquads = useMemo(() => listAvailableSquadSummaries(workspaceDir), [workspaceDir]);
   const track = session ? resolveTrack(session) : "build";
-  const suggestions = session ? getInputSuggestions(inputValue, session, availableSquads) : [];
+  const suggestions = session ? getInputSuggestions(inputValue, session, availableSquads, providersData, modelsData) : [];
   const promptRecipes = session ? getPromptRecipes(track, session.squad) : [];
   const skills = useMemo(() => {
     if (!session) {
@@ -625,12 +836,14 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
   }, []);
 
   const reloadSurfaceData = useCallback(async () => {
-    const [providers, workflowList, runList] = await Promise.all([
+    const [providers, models, workflowList, runList] = await Promise.all([
       runProvidersCommand(workspaceDir),
+      runModelsCommand(workspaceDir),
       listWorkflowSummaries(workspaceDir),
       listRecentRuns(workspaceDir),
     ]);
     setProvidersData(providers);
+    setModelsData(models);
     setWorkflows(workflowList);
     setRecentRuns(runList);
   }, [workspaceDir]);
@@ -641,13 +854,13 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       setSession(initialSession);
       await persistState(initialSession);
       await reloadSurfaceData();
-      appendMessage(
-        "system",
-        "squadscli console",
-        `Workspace: ${workspaceDir}\nSquad: ${initialSession.squad}\nUse /help para ver os comandos, /squad next para alternar ou Ctrl+J/Ctrl+K para trocar rapido.\n\n${formatSquadList(availableSquads.slice(0, 5), initialSession.squad)}`,
-      );
-    })();
-  }, [appendMessage, availableSquads, preferredSquad, reloadSurfaceData, workspaceDir]);
+        appendMessage(
+          "system",
+          "squadscli console",
+          `Workspace: ${workspaceDir}\nSquad: ${initialSession.squad}\nProvider: ${initialSession.provider}\n\nComece assim:\n1. /provider list\n2. /model list\n3. digite o brief e pressione Enter\n\n${formatSquadList(availableSquads.slice(0, 5), initialSession.squad)}`,
+        );
+      })();
+    }, [appendMessage, availableSquads, preferredSquad, reloadSurfaceData, workspaceDir]);
 
   const updateSession = useCallback(async (updater: (current: SessionState) => SessionState, message?: string) => {
     if (!session) return;
@@ -723,7 +936,6 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     if (command.name === "squad") {
-      setPanel("squads");
       const selection = resolveSquadInput(command.argText, session.squad, availableSquads);
 
       if (selection.action === "list") {
@@ -747,32 +959,28 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     if (command.name === "squads") {
-      setPanel("squads");
       appendMessage("system", "Squads", formatSquadList(availableSquads, session.squad));
       return;
     }
 
     if (command.name === "providers") {
-      setPanel("providers");
-      appendMessage("system", "Providers", providersData ? formatJson(providersData) : "Carregando providers...");
+      appendMessage("system", "Providers", providersData ? formatProviderList(providersData.providers, session.provider) : "Carregando providers...");
       return;
     }
 
     if (command.name === "models") {
-      const provider = (command.argText || session.provider) as ProviderName;
-      const result = await runModelsCommand(workspaceDir, provider);
-      appendMessage("system", `Models ${provider}`, formatJson(result));
+      const targetProvider = (providersData?.providers.find((item) => item.provider === command.argText)?.provider || session.provider) as ProviderName;
+      const choices = modelsData ? getModelChoices(modelsData.providers, targetProvider) : [];
+      appendMessage("system", `Models ${targetProvider}`, formatModelList(targetProvider, choices, targetProvider === session.provider ? session.model : undefined));
       return;
     }
 
     if (command.name === "workflows") {
-      setPanel("workflows");
       appendMessage("system", "Workflows", workflows.length ? formatJson(workflows) : "Nenhum workflow ainda.");
       return;
     }
 
     if (command.name === "history") {
-      setPanel("runs");
       appendMessage("system", "Runs recentes", recentRuns.length ? formatJson(recentRuns) : "Nenhum run ainda.");
       return;
     }
@@ -780,7 +988,6 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     if (command.name === "skills") {
       const action = command.argText.split(" ")[0]?.toLowerCase() || "";
       const payload = command.argText.replace(/^\S+\s*/, "").trim();
-      setPanel("skills");
 
       if (!action) {
         appendMessage("system", "Skills", `Squad:\n${skills.join("\n") || "none"}\n\nFocus:\n${session.focusSkills.join("\n") || "none"}`);
@@ -802,19 +1009,46 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       return;
     }
 
-    if (command.name === "provider") {
-      const nextProvider = providersData?.providers.find((item) => item.provider === command.argText)?.provider;
-      if (!nextProvider) {
-        appendMessage("error", "Provider invalido", providersData ? providersData.providers.map((item) => item.provider).join(", ") : "Providers indisponiveis.");
+    if (command.name === "provider" || command.name === "p") {
+      const providers = providersData?.providers || [];
+      const selection = resolveProviderInput(command.argText, session.provider, providers);
+
+      if (selection.action === "list") {
+        appendMessage("system", "Providers", providersData ? formatProviderList(providers, session.provider) : "Carregando providers...");
         return;
       }
-      await updateSession((current) => ({ ...current, provider: nextProvider, model: undefined }), `Provider definido para ${nextProvider}.`);
+
+      const nextProvider = selection.action === "select" ? selection.provider : undefined;
+      if (!nextProvider) {
+        appendMessage("error", "Provider invalido", providersData ? `${formatProviderList(providers, session.provider)}\n\nUse /provider <numero|nome|next|prev>.` : "Providers indisponiveis.");
+        return;
+      }
+
+      if (nextProvider === session.provider) {
+        appendMessage("system", "Provider mantido", `Continuando com ${nextProvider}.`);
+        return;
+      }
+
+      await updateSession((current) => ({ ...current, provider: nextProvider, model: undefined }), `Provider definido para ${nextProvider}.\nUse /model list para ver os modelos deste provider.`);
       return;
     }
 
-    if (command.name === "model") {
-      const nextModel = !command.argText || command.argText === "auto" ? undefined : command.argText;
-      await updateSession((current) => ({ ...current, model: nextModel }), `Model definido para ${nextModel || "auto"}.`);
+    if (command.name === "model" || command.name === "m") {
+      const choices = modelsData ? getModelChoices(modelsData.providers, session.provider) : ["auto"];
+      const selection = resolveModelInput(command.argText, session.model, choices);
+
+      if (selection.action === "list") {
+        appendMessage("system", `Models ${session.provider}`, formatModelList(session.provider, choices, session.model));
+        return;
+      }
+
+      const nextModel = selection.action === "select" ? selection.model : undefined;
+      if (!nextModel) {
+        appendMessage("error", "Model invalido", `${formatModelList(session.provider, choices, session.model)}\n\nUse /model <numero|nome|next|prev|auto>.`);
+        return;
+      }
+
+      await updateSession((current) => ({ ...current, model: nextModel === "auto" ? undefined : nextModel }), `Model definido para ${nextModel}.`);
       return;
     }
 
@@ -903,7 +1137,7 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
     }
 
     appendMessage("error", "Comando desconhecido", `/${command.name}`);
-  }, [appendMessage, availableSquads, exit, providersData, recentRuns, reloadSurfaceData, runWorkflow, session, skills, updateSession, workflows, workspaceDir]);
+  }, [appendMessage, availableSquads, exit, modelsData, providersData, recentRuns, reloadSurfaceData, runWorkflow, session, skills, updateSession, workflows, workspaceDir]);
 
   const submit = useCallback(async () => {
     const value = inputValue.trim();
@@ -955,22 +1189,11 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
       return;
     }
 
-    if (key.leftArrow && !inputValue) {
-      setPanel((current) => cyclePanel(current, -1));
-      return;
-    }
-
-    if (key.rightArrow && !inputValue) {
-      setPanel((current) => cyclePanel(current, 1));
-      return;
-    }
-
     if (session && key.ctrl && value === "j") {
       void updateSession(
         (current) => ({ ...current, squad: cycleSquad(current.squad, 1, availableSquads) }),
         `Squad definido para ${cycleSquad(session.squad, 1, availableSquads)}.`,
       );
-      setPanel("squads");
       return;
     }
 
@@ -979,7 +1202,24 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
         (current) => ({ ...current, squad: cycleSquad(current.squad, -1, availableSquads) }),
         `Squad definido para ${cycleSquad(session.squad, -1, availableSquads)}.`,
       );
-      setPanel("squads");
+      return;
+    }
+
+    if (session && providersData && key.ctrl && value === "p") {
+      const nextProvider = cycleProvider(session.provider, 1, providersData.providers);
+      void updateSession(
+        (current) => ({ ...current, provider: nextProvider, model: undefined }),
+        `Provider definido para ${nextProvider}. Use /model list para ver os modelos deste provider.`,
+      );
+      return;
+    }
+
+    if (session && modelsData && key.ctrl && value === "o") {
+      const nextModel = cycleModel(session.model, 1, getModelChoices(modelsData.providers, session.provider));
+      void updateSession(
+        (current) => ({ ...current, model: nextModel === "auto" ? undefined : nextModel }),
+        `Model definido para ${nextModel}.`,
+      );
       return;
     }
 
@@ -1036,60 +1276,54 @@ function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; pr
         <StatusChip label="track" value={formatTrackLabel(track)} tone={getTrackTone(track)} />
         <StatusChip label="squad" value={session.squad} />
         <StatusChip label="provider" value={session.provider} tone={providersData?.providers.find((item) => item.provider === session.provider)?.ready ? "success" : "warning"} />
+        <StatusChip label="model" value={formatCurrentModel(session, modelsData)} tone="muted" />
         <StatusChip label="stage" value={session.stage} tone="muted" />
         <StatusChip label="mode" value={session.dryRun ? "dry-run" : "live"} tone={session.dryRun ? "warning" : "success"} />
       </Box>
 
       <Box gap={1}>
-        <Panel title="Session Rail" subtitle="estado atual" width={34} tone="accent">
+        <Panel title="Agora" subtitle="estado atual" width={30} tone="accent">
           <SidebarSession state={session} />
           <Box marginTop={1} flexDirection="column">
-            <Text color="gray">Tab alterna build/plan</Text>
+            <Text color="gray">1. /provider list</Text>
+            <Text color="gray">2. /model list</Text>
+            <Text color="gray">3. escreva o brief + Enter</Text>
             <Text color="gray">Ctrl+J/K troca squad</Text>
-            <Text color="gray">Left/Right alterna contexto</Text>
-            <Text color="gray">Up/Down navega historico</Text>
-            <Text color="gray">Esc limpa input · Ctrl+L limpa feed</Text>
+            <Text color="gray">Ctrl+P provider · Ctrl+O model</Text>
           </Box>
         </Panel>
 
         <Box flexDirection="column" flexGrow={1}>
-          <Panel title={busy ? "Prompt Center · running" : "Prompt Center"} subtitle="acao principal" flexGrow={1} tone="default">
+          <Panel title={busy ? "Prompt" : "Prompt"} subtitle="acao principal" flexGrow={1} tone="default">
             <TrackTabs active={track} />
-            <Text color="gray">Escreva um brief ou use um slash command. A interface prioriza contexto minimo e execucao rapida.</Text>
+            <Text color="gray">Troque squad, provider e model primeiro. Depois descreva a rodada em linguagem natural e pressione Enter.</Text>
             <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "magenta"} paddingX={1} flexDirection="column">
-              <Text color="gray">Prompt {busy ? "· running" : "· ready"} · {formatTrackLabel(track)} · {session.squad} · {session.provider}</Text>
-              <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /squad next, /provider codex, /stage full-run" />
+              <Text color="gray">ready {busy ? "· running" : "· idle"} · {formatTrackLabel(track)} · {session.squad} · {session.provider} · {formatCurrentModel(session, modelsData)}</Text>
+              <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /provider list, /model list, /squad next" />
             </Box>
             <SuggestionList suggestions={suggestions} />
             <SquadQuickPicker currentSquad={session.squad} squads={availableSquads} visible={!busy && (!inputValue.trim() || inputValue.trim().startsWith("/squad"))} />
             <PromptRecipeList track={track} squad={session.squad} visible={!inputValue.trim() && !busy && promptRecipes.length > 0} />
           </Panel>
 
-          <Box marginTop={1} gap={1}>
-            <Panel title={busy ? "Live Activity" : "Activity Feed"} subtitle="feedback da execucao" flexGrow={1} tone="success">
+          <Box marginTop={1}>
+            <Panel title={busy ? "Activity" : "Activity"} subtitle="feedback da execucao" flexGrow={1} tone="success">
               {messages.length === 0 ? (
                 <Box flexDirection="column">
                   <Text color="gray">Sem eventos ainda.</Text>
-                  <Text color="gray">Use um brief direto, /build para execucao completa ou /plan para preparar antes.</Text>
+                  <Text color="gray">Use /provider list e /model list se quiser ajustar a sessao antes da primeira rodada.</Text>
                 </Box>
               ) : (
-                <Static items={messages.slice(-12)}>
+                <Static items={messages.slice(-10)}>
                   {(message) => <MessageView key={message.id} message={message} />}
                 </Static>
               )}
             </Panel>
-
-            <Panel title="Hotkeys" subtitle="atalhos" width={32} tone="warning">
-              <Text color="gray">/build /plan /review /autonomy</Text>
-              <Text color="gray">/squad 1..N ou /squad next</Text>
-              <Text color="gray">/provider codex | claude | opencode</Text>
-              <Text color="gray">/skills set a,b · /history · /doctor</Text>
-            </Panel>
           </Box>
         </Box>
 
-        <Panel title="Context" subtitle={panel} width={46} tone="muted">
-          <SidePanelView panel={panel} squads={availableSquads} currentSquad={session.squad} providersData={providersData} workflows={workflows} recentRuns={recentRuns} skills={skills} />
+        <Panel title="Trocar provider / model" subtitle="comandos diretos" width={42} tone="warning">
+          <ProviderModelQuickPicker session={session} providersData={providersData} modelsData={modelsData} />
         </Panel>
       </Box>
     </Box>
