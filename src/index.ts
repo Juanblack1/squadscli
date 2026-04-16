@@ -31,7 +31,7 @@ function printHelp() {
 
 Commands:
   squadscli init [--target path] [--force]
-  squadscli console [--workspace path]
+  squadscli console [--workspace path] [--squad code]
   squadscli desktop [--workspace path]
   squadscli squads [--workspace path]
   squadscli serve
@@ -179,11 +179,12 @@ async function main() {
       args: rest,
       options: {
         workspace: { type: "string" },
+        squad: { type: "string" },
       },
       allowPositionals: false,
     });
 
-    await runConsoleCommand(path.resolve(values.workspace || process.cwd()));
+    await runConsoleCommand(path.resolve(values.workspace || process.cwd()), values.squad);
     return;
   }
 
@@ -258,11 +259,11 @@ async function main() {
       mode,
       stage,
       effort,
-        model: values.model,
-        provider,
-        dryRun: Boolean(values["dry-run"]),
-        focusSkills: parseSkillSelection(values.skills),
-      });
+      model: values.model,
+      provider,
+      dryRun: Boolean(values["dry-run"]),
+      focusSkills: parseSkillSelection(values.skills),
+    });
 
     console.log(JSON.stringify(result, null, 2));
     return;
