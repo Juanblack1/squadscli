@@ -329,11 +329,29 @@ software-factory console
 O console agora abre uma TUI estilo CLI moderna com:
 
 - painel de sessão fixo
+- switcher explícito de `provider` e `model`
 - feed central de atividade
-- painel lateral de contexto
-- input interativo no rodapé
+- input interativo com comandos curtos para troca de contexto
 - histórico por setas
 - atalhos de terminal
+
+Troca rápida dentro do console:
+
+```text
+/provider list
+/provider next
+/provider claude
+/model list
+/model sonnet
+/model auto
+```
+
+Fluxo mais simples de uso:
+
+1. Escolha o squad
+2. Rode `/provider list` e troque o executor, se precisar
+3. Rode `/model list` e troque o modelo, se precisar
+4. Digite o brief e pressione Enter
 
 Ele mantém uma sessão persistida em `.software-factory/console-session.json` com:
 
