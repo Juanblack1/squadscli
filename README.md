@@ -1,8 +1,8 @@
-# software-factory-cli
+# SquadsCli
 
-🚀 Orquestrador do **Software Factory 2.0** para terminal, API, MCP e cockpit web.
+🚀 Orquestrador do **SquadsCli** para terminal, API, MCP e cockpit web.
 
-Este projeto transforma o squad `software-factory` em um sistema operacional de entrega com:
+Este projeto transforma o runtime de squads em um sistema operacional de entrega com:
 
 - 🧠 runtime real do squad e dos agentes
 - ⚙️ multiprovider e multimodelo
@@ -15,10 +15,11 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 
 ## O que ele faz
 
-- executa o squad `software-factory` por CLI
+- executa qualquer squad disponivel no workspace por CLI
 - gera `PRD`, `Tech Spec`, `Tasks` e `Review` por workflow
 - mantém memória incremental por feature
 - escolhe `provider` e `model` explicitamente por comando
+- permite escolher o squad por `--squad` na CLI e pela interface desktop
 - expõe `providers`, `models`, `doctor` e `retrieval`
 - publica e instala como pacote privado
 - planeja edição de vídeo e gera pacote para vários editores
@@ -27,10 +28,10 @@ Este projeto transforma o squad `software-factory` em um sistema operacional de 
 
 ### 1. CLI
 
-- `software-factory`
-- alias compatível com ambientes agent-native: `cli-anything-software-factory`
-- modo REPL estilo terminal com estado de sessão: `software-factory console`
-- launcher desktop visual: `software-factory desktop`
+- `squadscli`
+- listagem de squads disponíveis: `squadscli squads`
+- modo REPL estilo terminal com estado de sessão: `squadscli console`
+- launcher desktop visual: `squadscli desktop`
 
 ## Instalação simples
 

@@ -16,14 +16,14 @@ if (-not (Test-Path $installScript)) {
 
 New-Item -ItemType Directory -Force -Path $OutputDir | Out-Null
 
-$targetExe = Join-Path $OutputDir "software-factory-installer-$Version.exe"
+$targetExe = Join-Path $OutputDir "squadscli-installer-$Version.exe"
 
 Invoke-ps2exe `
   -inputFile $installScript `
   -outputFile $targetExe `
-  -title "software-factory installer" `
-  -description "Instala o software-factory CLI e abre o console" `
-  -product "software-factory" `
+  -title "squadscli installer" `
+  -description "Instala o SquadsCli e abre o console" `
+  -product "squadscli" `
   -company "Juanblack1" `
   -version $Version `
   -noConsole:$false

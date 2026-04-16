@@ -22,6 +22,7 @@ import {
 
 export async function runSoftwareFactoryCommand(options: {
   name?: string;
+  squad?: string;
   brief: string;
   workspaceDir: string;
   mode: RunMode;
@@ -35,7 +36,7 @@ export async function runSoftwareFactoryCommand(options: {
   await loadEnvironment(options.workspaceDir);
 
   const config = await loadSoftwareFactoryConfig(options.workspaceDir);
-  const squad = loadSoftwareFactoryContext();
+  const squad = loadSoftwareFactoryContext(options.workspaceDir, options.squad);
   const stateDir = path.join(options.workspaceDir, config.outputDir);
   const runId = timestampForRun();
   const stage = options.stage || options.mode;
@@ -50,7 +51,10 @@ export async function runSoftwareFactoryCommand(options: {
   await ensureDir(currentDir);
   await initializeWorkflow(workflowPaths, options.brief);
 
-  const squadPacket = getStageSquadPacket(stage);
+  const squadPacket = getStageSquadPacket(stage, {
+    workspaceDir: options.workspaceDir,
+    squadCode: squad.code,
+  });
   const workflowSnapshot = await loadWorkflowArtifactSnapshot(workflowPaths);
   const retrievedContext = retrieveStageContext({
     stage,
@@ -106,6 +110,7 @@ export async function runSoftwareFactoryCommand(options: {
         provider: options.provider,
         focusSkills: options.focusSkills || [],
         workspaceDir: options.workspaceDir,
+        requestedSquad: options.squad || null,
         execution: plannedExecution,
       },
       null,
@@ -117,14 +122,15 @@ export async function runSoftwareFactoryCommand(options: {
     return {
       runId,
       workflowName,
+      squad: squad.code,
       stage,
       effort,
-        model: model || null,
-        runDir,
-        promptPath: path.join(runDir, "prompt.md"),
-        responsePath: null,
-        execution: plannedExecution,
-      };
+      model: model || null,
+      runDir,
+      promptPath: path.join(runDir, "prompt.md"),
+      responsePath: null,
+      execution: plannedExecution,
+    };
   }
 
   const provider = createProvider(options.provider);
@@ -165,6 +171,7 @@ export async function runSoftwareFactoryCommand(options: {
     return {
       runId,
       workflowName,
+      squad: squad.code,
       stage,
       effort,
       runDir,

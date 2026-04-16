@@ -22,33 +22,35 @@ import { runYouTubeUploadCommand } from "./commands/youtube-upload.js";
 import { resolveEffort, resolveProvider } from "./config.js";
 import { parseSkillSelection } from "./console-utils.js";
 import { listProviderNames } from "./provider-registry.js";
+import { listAvailableSquads } from "./squad-loader.js";
 import type { RunMode, RunStage } from "./types.js";
 import { SUPPORTED_VIDEO_EDITORS } from "./video-utils.js";
 
 function printHelp() {
-  console.log(`software-factory
+  console.log(`squadscli
 
 Commands:
-  software-factory init [--target path] [--force]
-  software-factory console [--workspace path]
-  software-factory desktop [--workspace path]
-  software-factory serve
-  software-factory mcp
-  software-factory web
-  software-factory run --brief "..." [--name workflow] [--mode full-run|review|autonomy] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b] [--effort lite|balanced|deep] [--workspace path] [--dry-run]
-  software-factory create-prd --brief "..." [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
-  software-factory create-techspec --brief "..." [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
-  software-factory create-tasks --brief "..." [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
-  software-factory video-plan --name workflow --input video.mp4 --goal "..." [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
-  software-factory video-package --name workflow --input video.mp4 [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}]
-  software-factory video-shorts --name workflow --input video.mp4 --goal "..." [--transcript-file legendas.vtt] [--count 5] [--min-seconds 20] [--max-seconds 45] [--materialize] [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
-  software-factory youtube-auth [--client-id xxx --client-secret yyy] [--port 8787] [--no-open] [--workspace path]
-  software-factory youtube-upload --file video.mp4 --title "..." [--description "..."] [--tags tag1,tag2] [--privacy private|unlisted|public] [--thumbnail image.png] [--playlist-id id] [--publish-at 2026-04-10T14:00:00Z]
-  software-factory providers [--workspace path]
-  software-factory models [--provider ${listProviderNames().join("|")}] [--workspace path]
-  software-factory generate-image --prompt "..." --output path [--aspect-ratio 16:9]
-  software-factory doctor [--workspace path] [--provider ${listProviderNames().join("|")}]
-  software-factory publish [--owner login] [--repo nome-do-repo] [--github-packages] [--github-packages-token-env VAR]
+  squadscli init [--target path] [--force]
+  squadscli console [--workspace path]
+  squadscli desktop [--workspace path]
+  squadscli squads [--workspace path]
+  squadscli serve
+  squadscli mcp
+  squadscli web
+  squadscli run --brief "..." [--squad code] [--name workflow] [--mode full-run|review|autonomy] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b] [--effort lite|balanced|deep] [--workspace path] [--dry-run]
+  squadscli create-prd --brief "..." [--squad code] [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
+  squadscli create-techspec --brief "..." [--squad code] [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
+  squadscli create-tasks --brief "..." [--squad code] [--name workflow] [--provider ${listProviderNames().join("|")}] [--model model] [--skills skill-a,skill-b]
+  squadscli video-plan --name workflow --input video.mp4 --goal "..." [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
+  squadscli video-package --name workflow --input video.mp4 [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}]
+  squadscli video-shorts --name workflow --input video.mp4 --goal "..." [--transcript-file legendas.vtt] [--count 5] [--min-seconds 20] [--max-seconds 45] [--materialize] [--editor ${SUPPORTED_VIDEO_EDITORS.join("|")}] [--provider ${listProviderNames().join("|")}] [--model model]
+  squadscli youtube-auth [--client-id xxx --client-secret yyy] [--port 8787] [--no-open] [--workspace path]
+  squadscli youtube-upload --file video.mp4 --title "..." [--description "..."] [--tags tag1,tag2] [--privacy private|unlisted|public] [--thumbnail image.png] [--playlist-id id] [--publish-at 2026-04-10T14:00:00Z]
+  squadscli providers [--workspace path]
+  squadscli models [--provider ${listProviderNames().join("|")}] [--workspace path]
+  squadscli generate-image --prompt "..." --output path [--aspect-ratio 16:9]
+  squadscli doctor [--workspace path] [--provider ${listProviderNames().join("|")}]
+  squadscli publish [--owner login] [--repo nome-do-repo] [--github-packages] [--github-packages-token-env VAR]
 `);
 }
 
@@ -154,7 +156,21 @@ async function main() {
 
     const targetDir = path.resolve(values.target || process.cwd());
     await runInitCommand(targetDir, Boolean(values.force));
-    console.log(`Software Factory inicializado em ${targetDir}`);
+    console.log(`SquadsCli inicializado em ${targetDir}`);
+    return;
+  }
+
+  if (command === "squads") {
+    const { values } = parseArgs({
+      args: rest,
+      options: {
+        workspace: { type: "string" },
+      },
+      allowPositionals: false,
+    });
+
+    const result = listAvailableSquads(path.resolve(values.workspace || process.cwd()));
+    console.log(JSON.stringify(result, null, 2));
     return;
   }
 
@@ -205,6 +221,7 @@ async function main() {
       options: {
         brief: { type: "string" },
         "brief-file": { type: "string" },
+        squad: { type: "string" },
         name: { type: "string" },
         mode: { type: "string" },
         provider: { type: "string" },
@@ -235,6 +252,7 @@ async function main() {
 
     const result = await runSoftwareFactoryCommand({
       name: values.name,
+      squad: values.squad,
       brief,
       workspaceDir,
       mode,
@@ -554,9 +572,9 @@ async function main() {
     const result = await runPublishCommand({
       projectDir: path.resolve(values.workspace || process.cwd()),
       owner: values.owner,
-      repo: values.repo || "software-factory-cli",
+      repo: values.repo || "squadscli",
       description:
-        "CLI instalavel em PT-BR para rodar o Software Factory com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first, imagens via Gemini e rounds de review rastreaveis.",
+        "CLI instalavel em PT-BR para rodar squads com workflows por feature, providers OpenAI/OpenAI-compatible/OpenCode, UX Pencil-first, imagens via Gemini e rounds de review rastreaveis.",
       githubPackages: Boolean(values["github-packages"]),
       githubPackagesTokenEnv: values["github-packages-token-env"],
     });

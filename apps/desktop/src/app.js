@@ -1,4 +1,4 @@
-const storageKey = "software-factory-desktop-session-history";
+const storageKeys = ["squadscli-desktop-session-history", "software-factory-desktop-session-history"];
 
 const workspaceName = document.getElementById("workspace-name");
 const workspacePath = document.getElementById("workspace-path");
@@ -8,6 +8,7 @@ const workflowCount = document.getElementById("workflow-count");
 const runCount = document.getElementById("run-count");
 const providerSelect = document.getElementById("provider-select");
 const modelSelect = document.getElementById("model-select");
+const squadSelect = document.getElementById("squad-select");
 const stageSelect = document.getElementById("stage-select");
 const effortSelect = document.getElementById("effort-select");
 const workflowInput = document.getElementById("workflow-input");
@@ -36,16 +37,21 @@ let sessionHistory = loadSessionHistory();
 const desktopApi = window.softwareFactoryDesktop;
 
 function loadSessionHistory() {
-  try {
-    const value = JSON.parse(localStorage.getItem(storageKey) || "[]");
-    return Array.isArray(value) ? value : [];
-  } catch {
-    return [];
+  for (const key of storageKeys) {
+    try {
+      const value = JSON.parse(localStorage.getItem(key) || "[]");
+      if (Array.isArray(value)) {
+        return value;
+      }
+    } catch {
+    }
   }
+
+  return [];
 }
 
 function persistSessionHistory() {
-  localStorage.setItem(storageKey, JSON.stringify(sessionHistory.slice(0, 24)));
+  localStorage.setItem(storageKeys[0], JSON.stringify(sessionHistory.slice(0, 24)));
 }
 
 function recordSession(entry) {
@@ -104,6 +110,7 @@ function summarizeNextAction(execution, fallback = "sem proximo passo") {
 
 function getComposerState() {
   return {
+    squad: squadSelect.value,
     provider: providerSelect.value,
     model: modelSelect.value,
     stage: stageSelect.value,
@@ -152,6 +159,9 @@ function createInspectorCard(title, subtitle, meta, action) {
 }
 
 function setComposerFromRun(run) {
+  if (run.squad && Array.from(squadSelect.options).some((option) => option.value === run.squad)) {
+    squadSelect.value = run.squad;
+  }
   providerSelect.value = run.provider || snapshot.defaultProvider;
   renderModels();
   modelSelect.value = run.model || "";
@@ -456,6 +466,22 @@ function renderProviders() {
   providerSelect.value = snapshot.providers.some((provider) => provider.provider === target) ? target : snapshot.defaultProvider;
 }
 
+function renderSquads() {
+  squadSelect.innerHTML = "";
+  const squads = Array.isArray(snapshot.squads) ? snapshot.squads : [];
+
+  squads.forEach((squad) => {
+    const option = createElement("option", "", `${squad.icon || "🧩"} ${squad.code}`);
+    option.value = squad.code;
+    squadSelect.appendChild(option);
+  });
+
+  const target = snapshot.session?.squad || squads.find((item) => item.code === "software-factory")?.code || squads[0]?.code || "software-factory";
+  if (Array.from(squadSelect.options).some((option) => option.value === target)) {
+    squadSelect.value = target;
+  }
+}
+
 function renderModels() {
   modelSelect.innerHTML = "";
   const providerBlock = snapshot.models.find((provider) => provider.provider === providerSelect.value) || snapshot.models[0];
@@ -481,6 +507,7 @@ function applySnapshot(nextSnapshot) {
   workflowCount.textContent = String(nextSnapshot.workflows.length);
   runCount.textContent = String(nextSnapshot.recentRuns.length + sessionHistory.length);
   effortSelect.value = nextSnapshot.session?.effort || nextSnapshot.defaultEffort;
+  renderSquads();
   renderProviders();
   renderModels();
   stageSelect.value = nextSnapshot.session?.stage || "full-run";
@@ -515,6 +542,7 @@ navButtons.forEach((button) => {
 });
 
 providerSelect.addEventListener("change", () => { renderModels(); void persistComposerState(); renderInspector(); });
+squadSelect.addEventListener("change", () => { void persistComposerState(); });
 modelSelect.addEventListener("change", () => { void persistComposerState(); });
 stageSelect.addEventListener("change", () => { void persistComposerState(); });
 effortSelect.addEventListener("change", () => { void persistComposerState(); });
@@ -542,6 +570,7 @@ runDoctorButton.addEventListener("click", async () => {
       id: `doctor-${Date.now()}`,
       timestamp: new Date().toISOString(),
       workspace: snapshot.workspace,
+      squad: squadSelect.value,
       provider: providerSelect.value,
       stage: "doctor",
       workflowName: workflowInput.value.trim(),
@@ -578,6 +607,7 @@ runButton.addEventListener("click", async () => {
   try {
     const result = await window.softwareFactoryDesktop.run({
       workspace: snapshot.workspace,
+      squad: squadSelect.value,
       provider: providerSelect.value,
       model: modelSelect.value,
       stage,
@@ -594,6 +624,7 @@ runButton.addEventListener("click", async () => {
       id: result.runId || `run-${Date.now()}`,
       timestamp: new Date().toISOString(),
       workspace: snapshot.workspace,
+      squad: squadSelect.value,
       provider: providerSelect.value,
       stage,
       workflowName: workflowInput.value.trim(),
@@ -619,5 +650,5 @@ if (!desktopApi) {
   throw new Error("softwareFactoryDesktop bridge unavailable");
 }
 
-appendFeed("system", "Desktop launcher", "Carregando workspace e preparando o workbench visual.");
+appendFeed("system", "SquadsCli Desktop", "Carregando workspace e preparando o workbench visual.");
 await refreshSnapshot(() => desktopApi.getBootstrap());

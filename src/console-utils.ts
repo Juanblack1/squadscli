@@ -4,6 +4,7 @@ import path from "node:path";
 import type { WorkflowExecutionState } from "../packages/core/src/index.js";
 import { loadSoftwareFactoryConfig } from "./config.js";
 import { SOFTWARE_FACTORY_BUNDLE } from "./generated/software-factory-bundle.js";
+import { listAvailableSquads, loadSoftwareFactoryContext } from "./squad-loader.js";
 import { loadWorkflowArtifactSnapshot } from "./workflow-context.js";
 import { getWorkflowPaths } from "./workflow.js";
 
@@ -66,6 +67,14 @@ export function parseSkillSelection(input?: string | null) {
   }
 
   return values;
+}
+
+export function listAvailableSquadSummaries(workspaceDir: string) {
+  return listAvailableSquads(workspaceDir);
+}
+
+export function extractWorkspaceSquadSkills(workspaceDir: string, squadCode?: string) {
+  return loadSoftwareFactoryContext(workspaceDir, squadCode).skills;
 }
 
 function inferCurrentStage(snapshot: Awaited<ReturnType<typeof loadWorkflowArtifactSnapshot>>) {

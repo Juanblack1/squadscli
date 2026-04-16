@@ -2,8 +2,8 @@ import type { SoftwareFactoryConfig } from "./types.js";
 
 export const DEFAULT_CONFIG: SoftwareFactoryConfig = {
   version: "1.0",
-  name: "software-factory",
-  outputDir: ".software-factory",
+  name: "squadscli",
+  outputDir: ".squadscli",
   defaultProvider: "openai",
   defaultEffort: "balanced",
   promptPolicy: {
@@ -14,7 +14,7 @@ export const DEFAULT_CONFIG: SoftwareFactoryConfig = {
   },
 };
 
-export const DEFAULT_POLICIES_MD = `# Software Factory Policies
+export const DEFAULT_POLICIES_MD = `# SquadsCli Policies
 
 ## Mandatory rules
 
@@ -29,7 +29,7 @@ export const DEFAULT_POLICIES_MD = `# Software Factory Policies
 
 export const DEFAULT_FULL_RUN_PROMPT = `# Full Run Mode
 
-Conduza o software-factory de ponta a ponta.
+Conduza o SquadsCli de ponta a ponta.
 
 Use exatamente estas secoes de saida:
 
@@ -92,7 +92,7 @@ Use exatamente estas secoes de saida:
 
 export const DEFAULT_AUTONOMY_PROMPT = `# Autonomy Mode
 
-Consolide o proximo ciclo do software-factory.
+Consolide o proximo ciclo do SquadsCli.
 
 Saida esperada:
 

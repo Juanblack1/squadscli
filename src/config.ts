@@ -26,7 +26,9 @@ export async function loadEnvironment(workspaceDir: string) {
 }
 
 export async function loadSoftwareFactoryConfig(workspaceDir: string): Promise<SoftwareFactoryConfig> {
-  const configPath = path.join(workspaceDir, DEFAULT_CONFIG.outputDir, "software-factory.config.json");
+  const primaryConfigPath = path.join(workspaceDir, DEFAULT_CONFIG.outputDir, "squadscli.config.json");
+  const legacyConfigPath = path.join(workspaceDir, ".software-factory", "software-factory.config.json");
+  const configPath = (await fileExists(primaryConfigPath)) ? primaryConfigPath : legacyConfigPath;
 
   if (!(await fileExists(configPath))) {
     return DEFAULT_CONFIG;

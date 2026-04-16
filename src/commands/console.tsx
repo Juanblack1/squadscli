@@ -7,7 +7,13 @@ import { Box, render, Static, Text, useApp, useInput } from "ink";
 import TextInput from "ink-text-input";
 
 import { loadSoftwareFactoryConfig } from "../config.js";
-import { extractSquadSkills, listRecentRuns, listWorkflowSummaries, parseSkillSelection } from "../console-utils.js";
+import {
+  extractWorkspaceSquadSkills,
+  listAvailableSquadSummaries,
+  listRecentRuns,
+  listWorkflowSummaries,
+  parseSkillSelection,
+} from "../console-utils.js";
 import { runDoctorCommand } from "./doctor.js";
 import { runModelsCommand } from "./models.js";
 import { runProvidersCommand } from "./providers.js";
@@ -16,6 +22,7 @@ import type { EffortLevel, ProviderName, RunMode, RunStage } from "../types.js";
 
 type SessionState = {
   workspaceDir: string;
+  squad: string;
   provider: ProviderName;
   model?: string;
   effort: EffortLevel;
@@ -27,7 +34,7 @@ type SessionState = {
 };
 
 type PersistedSessionState = Partial<
-  Pick<SessionState, "provider" | "model" | "effort" | "workflowName" | "mode" | "stage" | "focusSkills" | "dryRun">
+  Pick<SessionState, "squad" | "provider" | "model" | "effort" | "workflowName" | "mode" | "stage" | "focusSkills" | "dryRun">
 >;
 
 type SlashCommand = {
@@ -59,6 +66,7 @@ const MODE_VALUES: RunMode[] = ["full-run", "review", "autonomy"];
 const STAGE_VALUES: RunStage[] = ["full-run", "prd", "techspec", "tasks", "review", "autonomy"];
 const PANEL_ORDER: SidePanel[] = ["providers", "workflows", "runs", "skills"];
 const HELP_TEXT = [
+  "/squad list | /squad software-factory",
   "/provider codex | claude | opencode",
   "/model auto | gpt-5.4 | sonnet",
   "/workflow onboarding | auto",
@@ -122,6 +130,7 @@ async function persistState(state: SessionState) {
     filePath,
     `${JSON.stringify(
       {
+        squad: state.squad,
         provider: state.provider,
         model: state.model || null,
         effort: state.effort,
@@ -142,9 +151,13 @@ async function buildInitialState(workspaceDir: string, options?: { ignorePersist
   const providers = await runProvidersCommand(workspaceDir);
   const config = await loadSoftwareFactoryConfig(workspaceDir);
   const persisted = options?.ignorePersisted ? null : await loadPersistedState(workspaceDir);
+  const availableSquads = listAvailableSquadSummaries(workspaceDir);
 
   const providerCandidates = new Set(providers.providers.map((provider) => provider.provider));
   const persistedProvider = persisted?.provider && providerCandidates.has(persisted.provider) ? persisted.provider : undefined;
+  const squad = persisted?.squad && availableSquads.some((item) => item.code === persisted.squad)
+    ? persisted.squad
+    : availableSquads.find((item) => item.code === "software-factory")?.code || availableSquads[0]?.code || "software-factory";
   const provider = persistedProvider || getDefaultProvider(providers);
   const mode = persisted?.mode && MODE_VALUES.includes(persisted.mode) ? persisted.mode : "full-run";
   const stage = persisted?.stage && STAGE_VALUES.includes(persisted.stage)
@@ -157,6 +170,7 @@ async function buildInitialState(workspaceDir: string, options?: { ignorePersist
 
   return {
     workspaceDir,
+    squad,
     provider,
     model: persisted?.model || undefined,
     effort: persisted?.effort && EFFORT_VALUES.includes(persisted.effort) ? persisted.effort : config.defaultEffort,
@@ -191,6 +205,7 @@ function MessageView({ message }: { message: ConsoleMessage }) {
 
 function SidebarSession({ state }: { state: SessionState }) {
   const rows = [
+    ["Squad", state.squad],
     ["Provider", state.provider],
     ["Model", state.model || "auto"],
     ["Stage", state.stage],
@@ -255,7 +270,17 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const nextId = useRef(1);
-  const skills = useMemo(() => extractSquadSkills(), []);
+  const skills = useMemo(() => {
+    if (!session) {
+      return [] as string[];
+    }
+
+    try {
+      return extractWorkspaceSquadSkills(workspaceDir, session.squad);
+    } catch {
+      return [] as string[];
+    }
+  }, [session, workspaceDir]);
 
   const appendMessage = useCallback((kind: MessageKind, title: string, body: string) => {
     setMessages((current) => [...current.slice(-24), { id: nextId.current++, kind, title, body }]);
@@ -280,7 +305,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
       await reloadSurfaceData();
       appendMessage(
         "system",
-        "software-factory console",
+        "squadscli console",
         `Workspace: ${workspaceDir}\nUse /help para ver os comandos ou digite um brief direto para executar.`,
       );
     })();
@@ -311,6 +336,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
     try {
       const result = await runSoftwareFactoryCommand({
         name: session.workflowName,
+        squad: session.squad,
         brief: normalizedBrief,
         workspaceDir: session.workspaceDir,
         mode: override?.mode || session.mode,
@@ -341,6 +367,24 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
 
     if (command.name === "status") {
       appendMessage("system", "Sessao", formatJson(session));
+      return;
+    }
+
+    if (command.name === "squad") {
+      const availableSquads = listAvailableSquadSummaries(workspaceDir);
+
+      if (!command.argText || command.argText === "list") {
+        appendMessage("system", "Squads", availableSquads.length ? formatJson(availableSquads) : "Nenhum squad encontrado.");
+        return;
+      }
+
+      const nextSquad = availableSquads.find((item) => item.code === command.argText)?.code;
+      if (!nextSquad) {
+        appendMessage("error", "Squad invalido", availableSquads.map((item) => item.code).join(", ") || "Nenhum squad disponivel.");
+        return;
+      }
+
+      await updateSession((current) => ({ ...current, squad: nextSquad }), `Squad definido para ${nextSquad}.`);
       return;
     }
 
@@ -569,7 +613,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
   if (!session) {
     return (
       <Box flexDirection="column">
-        <Text color="cyan" bold>software-factory console</Text>
+        <Text color="cyan" bold>squadscli console</Text>
         <Text color="gray">Carregando sessao...</Text>
       </Box>
     );
@@ -579,7 +623,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
     <Box flexDirection="column">
       <Box justifyContent="space-between" marginBottom={1}>
         <Box>
-          <Text color="cyan" bold>software-factory</Text>
+          <Text color="cyan" bold>squadscli</Text>
           <Text color="gray">  modern terminal workspace</Text>
         </Box>
         <Text color="magenta">{path.basename(workspaceDir)}</Text>
@@ -621,11 +665,12 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
 
 async function runConsoleFallback(workspaceDir: string) {
   const state = await buildInitialState(workspaceDir);
-  output.write("software-factory console\n");
+  output.write("squadscli console\n");
   output.write("Esta interface moderna precisa de um terminal TTY interativo.\n");
   output.write(`Workspace: ${workspaceDir}\n`);
+  output.write(`Squad: ${state.squad}\n`);
   output.write(`Provider: ${state.provider}\n`);
-  output.write("Abra em um terminal real e rode: software-factory console\n");
+  output.write("Abra em um terminal real e rode: squadscli console\n");
 }
 
 export async function runConsoleCommand(workspaceDir: string) {

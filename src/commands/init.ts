@@ -11,7 +11,7 @@ import { ensureDir, fileExists, writeText } from "../fs-utils.js";
 
 export async function runInitCommand(targetDir: string, force: boolean) {
   const stateDir = path.join(targetDir, DEFAULT_CONFIG.outputDir);
-  const configPath = path.join(stateDir, "software-factory.config.json");
+  const configPath = path.join(stateDir, "squadscli.config.json");
 
   if (!force && (await fileExists(configPath))) {
     throw new Error(`Ja existe configuracao em ${configPath}. Use --force para sobrescrever.`);

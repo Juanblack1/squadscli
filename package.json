@@ -1,12 +1,11 @@
 {
-  "name": "@juanblack1/software-factory-cli",
+  "name": "@juanblack1/squadscli",
   "version": "0.9.1",
-  "description": "Orquestrador CLI do Software Factory 2.0 com squad runtime, server HTTP, MCP, cockpit web inicial, retrieval seletivo, multiprovider e workflow universal para software e video.",
+  "description": "Orquestrador CLI do SquadsCli com runtime de squads, server HTTP, MCP, cockpit desktop e workflow universal para software e video.",
   "license": "MIT",
   "type": "module",
   "bin": {
-    "software-factory": "dist/src/index.js",
-    "cli-anything-software-factory": "dist/src/index.js"
+    "squadscli": "dist/src/index.js"
   },
   "main": "dist/src/index.js",
   "files": [
@@ -36,7 +35,7 @@
   },
   "keywords": [
     "cli",
-    "software-factory",
+    "squadscli",
     "opensquad",
     "opencode",
     "openai",
@@ -54,11 +53,11 @@
   "license": "UNLICENSED",
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/Juanblack1/software-factory-cli.git"
+    "url": "git+https://github.com/Juanblack1/squadscli.git"
   },
-  "homepage": "https://github.com/Juanblack1/software-factory-cli#readme",
+  "homepage": "https://github.com/Juanblack1/squadscli#readme",
   "bugs": {
-    "url": "https://github.com/Juanblack1/software-factory-cli/issues"
+    "url": "https://github.com/Juanblack1/squadscli/issues"
   },
   "publishConfig": {
     "registry": "https://npm.pkg.github.com"
