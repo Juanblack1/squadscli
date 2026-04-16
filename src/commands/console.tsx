@@ -288,6 +288,29 @@ function formatTrackLabel(track: ConsoleTrack) {
   return "autonomy";
 }
 
+function fuzzyMatch(query: string, target: string): boolean {
+  const q = query.toLowerCase().replace(/\s/g, "");
+  const t = target.toLowerCase();
+  let qi = 0;
+  for (let i = 0; i < t.length && qi < q.length; i++) {
+    if (t[i] === q[qi]) qi++;
+  }
+  return qi === q.length;
+}
+
+function searchCommands(query: string, allCommands: CommandSuggestion[]): CommandSuggestion[] {
+  if (!query) return allCommands.slice(0, 6);
+  const q = query.replace(/^\//, "").toLowerCase();
+  if (!q) return allCommands.slice(0, 6);
+  const exact = allCommands.filter((c) => c.command.toLowerCase().includes(q));
+  if (exact.length > 0) return exact.slice(0, 6);
+  const fuzzy = allCommands.filter((c) => fuzzyMatch(q, c.command) || fuzzyMatch(q, c.description));
+  if (fuzzy.length > 0) return fuzzy.slice(0, 6);
+  const words = q.split("").filter(Boolean);
+  const byChar = allCommands.filter((c) => words.every((w) => c.command.toLowerCase().includes(w) || c.description.toLowerCase().includes(w)));
+  return byChar.slice(0, 6);
+}
+
 function getInputSuggestions(
   inputValue: string,
   session: SessionState,
@@ -306,6 +329,8 @@ function getInputSuggestions(
 
   const parsed = parseSlashCommand(trimmed);
   if (parsed.name === "squad") {
+    const filter = parsed.argText.toLowerCase();
+    const filtered = filter ? availableSquads.filter((s) => fuzzyMatch(filter, s.code) || fuzzyMatch(filter, s.name)) : availableSquads;
     return [
       {
         command: "/squad next",
@@ -315,7 +340,7 @@ function getInputSuggestions(
         command: "/squad prev",
         description: `squad anterior a ${session.squad}`,
       },
-      ...availableSquads.slice(0, 6).map((item, index) => ({
+      ...filtered.slice(0, 6).map((item, index) => ({
         command: `/squad ${index + 1}`,
         description: `${item.icon} ${item.code}${item.code === session.squad ? " · ativo" : ""}`,
       })),
@@ -323,22 +348,27 @@ function getInputSuggestions(
   }
 
   if (parsed.name === "provider" || parsed.name === "p") {
+    const filter = parsed.argText.toLowerCase();
+    const providers = providersData?.providers || [];
+    const filtered = filter ? providers.filter((p) => fuzzyMatch(filter, p.provider)) : providers;
     return [
       { command: "/provider list", description: `providers disponiveis · atual ${session.provider}` },
       { command: "/provider next", description: "troca para o proximo provider pronto" },
-      ...(providersData?.providers.slice(0, 4).map((item, index) => ({
+      ...filtered.slice(0, 4).map((item, index) => ({
         command: `/provider ${index + 1}`,
         description: `${item.provider}${item.provider === session.provider ? " · ativo" : ""}${item.ready ? " · ready" : " · not ready"}`,
-      })) || []),
+      })),
     ].slice(0, 6);
   }
 
   if (parsed.name === "model" || parsed.name === "m") {
     const modelChoices = modelsData ? getModelChoices(modelsData.providers, session.provider) : ["auto"];
+    const filter = parsed.argText.toLowerCase();
+    const filtered = filter ? modelChoices.filter((m) => fuzzyMatch(filter, m)) : modelChoices;
     return [
       { command: "/model list", description: `modelos para ${session.provider}` },
       { command: "/model next", description: `proximo modelo do provider ${session.provider}` },
-      ...modelChoices.slice(0, 4).map((item, index) => ({
+      ...filtered.slice(0, 4).map((item, index) => ({
         command: `/model ${index + 1}`,
         description: `${item}${item === (session.model || "auto") ? " · ativo" : ""}`,
       })),
@@ -346,7 +376,7 @@ function getInputSuggestions(
   }
 
   const query = `/${parsed.name}`;
-  return COMMAND_SUGGESTIONS.filter((item) => item.command.startsWith(query)).slice(0, 6);
+  return searchCommands(parsed.name, COMMAND_SUGGESTIONS.filter((item) => item.command.startsWith(query)));
 }
 
 function getPromptRecipes(track: ConsoleTrack, squad: string) {
@@ -788,25 +818,46 @@ function findPrimaryExecution(
 function RunMonitorView(props: { execution: Awaited<ReturnType<typeof listRecentRuns>>[number]["execution"] | null; busy: boolean }) {
   if (!props.execution) {
     return (
-      <Panel title="Run Monitor" subtitle="sem execucao" tone="muted">
-        <Text color="gray">Nenhum run encontrado ainda. Rode um brief para ver o plano do squad e o status da rodada.</Text>
+      <Panel title="Run" subtitle="empty" tone="muted">
+        <Text color="gray">Execute um brief para ver o monitor.</Text>
       </Panel>
     );
   }
 
+  const firstPending = props.execution.steps.find((s) => s.status !== "completed");
+  const currentAgent = firstPending?.agentName || firstPending?.name || "—";
+  const nextStep = props.execution.steps.slice((props.execution.steps.findIndex((s) => s.status !== "completed") + 1)).find((s) => s.status === "planned");
+  const nextAgent = nextStep?.agentName || nextStep?.name || "done";
+  const completed = props.execution.steps.filter((s) => s.status === "completed").length;
+  const total = props.execution.steps.length;
+  const progress = total > 0 ? Math.round((completed / total) * 100) : 0;
+
   return (
-    <Panel title="Run Monitor" subtitle={`${props.execution.workflowName} · ${props.execution.status}${props.busy ? " · live" : ""}`} tone={props.execution.status === "failed" ? "warning" : props.execution.status === "completed" ? "success" : "accent"}>
-      <Text>
-        <Text color="gray">stage</Text> <Text>{props.execution.stage}</Text>
-        <Text color="gray">  provider</Text> <Text>{props.execution.provider}</Text>
-        <Text color="gray">  model</Text> <Text>{props.execution.model || "auto"}</Text>
-      </Text>
-      <Text color="gray">next {props.execution.nextAction || "aguardar conclusao"}</Text>
+    <Panel title="Run" subtitle={`${props.execution.workflowName}`} tone={props.execution.status === "failed" ? "warning" : props.execution.status === "completed" ? "success" : "accent"}>
+      <Box flexDirection="row" gap={2}>
+        <Text color="gray">stage:</Text><Text>{props.execution.stage}</Text>
+        <Text color="gray">│p:</Text><Text>{props.execution.provider}</Text>
+        <Text color="gray">│m:</Text><Text>{props.execution.model || "auto"}</Text>
+      </Box>
+      <Box flexDirection="row" marginTop={1}>
+        <Text color="greenBright">▶</Text><Text color="gray"> </Text><Text bold>{currentAgent}</Text>
+      </Box>
+      <Box flexDirection="row" marginTop={0}>
+        <Text color="gray">next:</Text><Text> {nextAgent}</Text>
+      </Box>
+      <Box marginTop={1} flexDirection="row">
+        <Text color="gray">[</Text>
+        <Text color="green">{completed}</Text>
+        <Text color="gray">/</Text>
+        <Text>{total}</Text>
+        <Text color="gray">]</Text>
+        <Text color="cyan"> {progress}%</Text>
+        {props.busy ? <Text color="greenBright" bold> ●</Text> : null}
+      </Box>
       <Box marginTop={1} flexDirection="column">
-        {props.execution.steps.slice(0, 12).map((step) => (
+        {props.execution.steps.slice(0, 6).map((step) => (
           <Text key={`${props.execution?.runId}-${step.id}`} color={stepStatusColor(step.status)}>
-            {stepStatusGlyph(step.status)} <Text color="white">{step.agentName || step.name}</Text>
-            <Text color="gray"> · {step.name}</Text>
+            {stepStatusGlyph(step.status)} <Text color={step.status === "planned" ? "yellowBright" : "gray"}>{step.agentName || step.name}</Text>
           </Text>
         ))}
       </Box>
