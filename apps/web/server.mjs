@@ -12,9 +12,58 @@ const contentTypes = {
   ".json": "application/json; charset=utf-8",
 };
 
+const allowedProxyHosts = new Set(["127.0.0.1", "localhost", "::1"]);
+
+function resolveProxyTarget(rawTarget) {
+  const target = new URL(rawTarget);
+  if (!["http:", "https:"].includes(target.protocol)) {
+    throw new Error("Protocolo de proxy invalido.");
+  }
+  if (!allowedProxyHosts.has(target.hostname)) {
+    throw new Error("Host de proxy nao permitido.");
+  }
+  return target;
+}
+
 const server = http.createServer(async (request, response) => {
   try {
     const url = new URL(request.url || "/", `http://${request.headers.host || "localhost"}`);
+
+    if (url.pathname.startsWith("/api-proxy/")) {
+      const targetParam = url.searchParams.get("target");
+      if (!targetParam) {
+        response.writeHead(400, { "content-type": "application/json; charset=utf-8" });
+        response.end(JSON.stringify({ error: "Parametro 'target' obrigatorio." }, null, 2));
+        return;
+      }
+
+      const target = resolveProxyTarget(targetParam);
+      const upstreamPath = url.pathname.replace(/^\/api-proxy/, "") || "/";
+      const upstreamUrl = new URL(upstreamPath, target);
+
+      url.searchParams.forEach((value, key) => {
+        if (key !== "target") {
+          upstreamUrl.searchParams.set(key, value);
+        }
+      });
+
+      const upstream = await fetch(upstreamUrl, {
+        method: request.method || "GET",
+        headers: {
+          accept: request.headers.accept || "application/json",
+          "content-type": request.headers["content-type"] || "application/json",
+        },
+      });
+
+      const body = await upstream.arrayBuffer();
+      response.writeHead(upstream.status, {
+        "content-type": upstream.headers.get("content-type") || "application/json; charset=utf-8",
+        "cache-control": "no-store",
+      });
+      response.end(Buffer.from(body));
+      return;
+    }
+
     const fileName = url.pathname === "/" ? "index.html" : url.pathname.replace(/^\//, "");
     const filePath = new URL(fileName, root);
     const content = await fs.readFile(filePath);

@@ -4,41 +4,55 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>software-factory 2.0 cockpit</title>
+    <link rel="icon" href="data:," />
     <link rel="stylesheet" href="./styles.css" />
   </head>
   <body>
     <main class="app-shell">
-      <header class="hero">
-        <div>
-          <p class="eyebrow">software-factory 2.0</p>
-          <h1>Cockpit operacional do orquestrador</h1>
-          <p class="subtitle">Server, workflows, providers e modelos em uma superficie visual minima e util.</p>
+      <header class="hero card">
+        <div class="hero-copy">
+          <p class="eyebrow">software-factory cockpit</p>
+          <h1>Leitura operacional simples para server, providers, modelos e workflows.</h1>
+          <p class="subtitle">A mesma linguagem do console e do desktop: menos ruído, mais hierarquia e uma superfície escura focada no estado do sistema.</p>
         </div>
-        <div class="server-config">
+
+        <div class="server-config card inner-card">
           <label for="server-url">Server URL</label>
           <input id="server-url" value="http://127.0.0.1:4111" />
           <button id="refresh-all">Atualizar</button>
         </div>
       </header>
 
-      <section class="grid two-col">
-        <article class="card">
-          <h2>Health</h2>
+      <section class="grid metrics-grid">
+        <article class="card data-card">
+          <div class="card-header">
+            <h2>Health</h2>
+            <span class="chip">server</span>
+          </div>
           <pre id="health-output">Aguardando...</pre>
         </article>
-        <article class="card">
-          <h2>Models</h2>
+
+        <article class="card data-card">
+          <div class="card-header">
+            <h2>Models</h2>
+            <span class="chip">catalog</span>
+          </div>
           <pre id="models-output">Aguardando...</pre>
         </article>
-      </section>
 
-      <section class="grid two-col">
-        <article class="card">
-          <h2>Providers</h2>
+        <article class="card data-card">
+          <div class="card-header">
+            <h2>Providers</h2>
+            <span class="chip">runtime</span>
+          </div>
           <pre id="providers-output">Aguardando...</pre>
         </article>
-        <article class="card">
-          <h2>Workflows</h2>
+
+        <article class="card data-card">
+          <div class="card-header">
+            <h2>Workflows</h2>
+            <span class="chip">memory</span>
+          </div>
           <pre id="workflows-output">Aguardando...</pre>
         </article>
       </section>
@@ -46,4 +60,4 @@
 
     <script type="module" src="./app.js"></script>
   </body>
-  </html>
+</html>
