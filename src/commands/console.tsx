@@ -43,7 +43,7 @@ type SlashCommand = {
 };
 
 type MessageKind = "system" | "user" | "result" | "error";
-type SidePanel = "providers" | "workflows" | "runs" | "skills";
+type SidePanel = "squads" | "providers" | "workflows" | "runs" | "skills";
 
 type ConsoleMessage = {
   id: number;
@@ -64,9 +64,9 @@ const STAGE_PRESETS: Record<string, { mode: RunMode; stage: RunStage }> = {
 const EFFORT_VALUES: EffortLevel[] = ["lite", "balanced", "deep"];
 const MODE_VALUES: RunMode[] = ["full-run", "review", "autonomy"];
 const STAGE_VALUES: RunStage[] = ["full-run", "prd", "techspec", "tasks", "review", "autonomy"];
-const PANEL_ORDER: SidePanel[] = ["providers", "workflows", "runs", "skills"];
+const PANEL_ORDER: SidePanel[] = ["squads", "providers", "workflows", "runs", "skills"];
 const HELP_TEXT = [
-  "/squad list | /squad software-factory",
+  "/squad list | /squad next | /squad 2 | /squad software-factory",
   "/provider codex | claude | opencode",
   "/model auto | gpt-5.4 | sonnet",
   "/workflow onboarding | auto",
@@ -109,6 +109,73 @@ function truncateLines(text: string, maxLines = 12) {
   return `${lines.slice(0, maxLines).join("\n")}\n...`;
 }
 
+function statusColor(kind: MessageKind) {
+  if (kind === "error") return "red" as const;
+  if (kind === "result") return "green" as const;
+  if (kind === "user") return "yellow" as const;
+  return "cyan" as const;
+}
+
+function cyclePanel(current: SidePanel, step: number) {
+  const index = PANEL_ORDER.indexOf(current);
+  return PANEL_ORDER[(index + step + PANEL_ORDER.length) % PANEL_ORDER.length];
+}
+
+function cycleSquad(current: string, step: number, availableSquads: ReturnType<typeof listAvailableSquadSummaries>) {
+  if (availableSquads.length === 0) {
+    return current;
+  }
+
+  const index = availableSquads.findIndex((item) => item.code === current);
+  const baseIndex = index >= 0 ? index : 0;
+  return availableSquads[(baseIndex + step + availableSquads.length) % availableSquads.length]?.code || current;
+}
+
+function formatSquadList(availableSquads: ReturnType<typeof listAvailableSquadSummaries>, currentSquad: string) {
+  if (availableSquads.length === 0) {
+    return "Nenhum squad encontrado.";
+  }
+
+  return availableSquads
+    .map((item, index) => {
+      const marker = item.code === currentSquad ? "*" : " ";
+      return `${marker} ${index + 1}. ${item.icon} ${item.code}  ${item.name}`;
+    })
+    .join("\n");
+}
+
+function resolveSquadInput(inputValue: string, currentSquad: string, availableSquads: ReturnType<typeof listAvailableSquadSummaries>) {
+  const normalized = inputValue.trim().toLowerCase();
+  if (!normalized || normalized === "list") {
+    return { action: "list" as const };
+  }
+
+  if (normalized === "next") {
+    return { action: "select" as const, squad: cycleSquad(currentSquad, 1, availableSquads) };
+  }
+
+  if (normalized === "prev" || normalized === "previous") {
+    return { action: "select" as const, squad: cycleSquad(currentSquad, -1, availableSquads) };
+  }
+
+  const asIndex = Number(normalized);
+  if (Number.isInteger(asIndex) && asIndex >= 1 && asIndex <= availableSquads.length) {
+    return { action: "select" as const, squad: availableSquads[asIndex - 1]?.code };
+  }
+
+  const exact = availableSquads.find((item) => item.code.toLowerCase() === normalized);
+  if (exact) {
+    return { action: "select" as const, squad: exact.code };
+  }
+
+  const byPrefix = availableSquads.filter((item) => item.code.toLowerCase().startsWith(normalized));
+  if (byPrefix.length === 1) {
+    return { action: "select" as const, squad: byPrefix[0].code };
+  }
+
+  return { action: "invalid" as const };
+}
+
 async function getSessionFilePath(workspaceDir: string) {
   const config = await loadSoftwareFactoryConfig(workspaceDir);
   return path.join(workspaceDir, config.outputDir, "console-session.json");
@@ -147,17 +214,24 @@ async function persistState(state: SessionState) {
   );
 }
 
-async function buildInitialState(workspaceDir: string, options?: { ignorePersisted?: boolean }): Promise<SessionState> {
+async function buildInitialState(workspaceDir: string, options?: { ignorePersisted?: boolean; preferredSquad?: string }): Promise<SessionState> {
   const providers = await runProvidersCommand(workspaceDir);
   const config = await loadSoftwareFactoryConfig(workspaceDir);
   const persisted = options?.ignorePersisted ? null : await loadPersistedState(workspaceDir);
   const availableSquads = listAvailableSquadSummaries(workspaceDir);
 
+  if (options?.preferredSquad && !availableSquads.some((item) => item.code === options.preferredSquad)) {
+    throw new Error(`Squad nao encontrado: ${options.preferredSquad}`);
+  }
+
   const providerCandidates = new Set(providers.providers.map((provider) => provider.provider));
   const persistedProvider = persisted?.provider && providerCandidates.has(persisted.provider) ? persisted.provider : undefined;
-  const squad = persisted?.squad && availableSquads.some((item) => item.code === persisted.squad)
+  const preferredSquad = options?.preferredSquad && availableSquads.some((item) => item.code === options.preferredSquad)
+    ? options.preferredSquad
+    : undefined;
+  const squad = preferredSquad || (persisted?.squad && availableSquads.some((item) => item.code === persisted.squad)
     ? persisted.squad
-    : availableSquads.find((item) => item.code === "software-factory")?.code || availableSquads[0]?.code || "software-factory";
+    : availableSquads.find((item) => item.code === "software-factory")?.code || availableSquads[0]?.code || "software-factory");
   const provider = persistedProvider || getDefaultProvider(providers);
   const mode = persisted?.mode && MODE_VALUES.includes(persisted.mode) ? persisted.mode : "full-run";
   const stage = persisted?.stage && STAGE_VALUES.includes(persisted.stage)
@@ -185,7 +259,7 @@ async function buildInitialState(workspaceDir: string, options?: { ignorePersist
 function Panel(props: { title: string; children: React.ReactNode; width?: number | string; flexGrow?: number }) {
   return (
     <Box flexDirection="column" width={props.width} flexGrow={props.flexGrow} borderStyle="round" borderColor="gray" paddingX={1} paddingY={0}>
-      <Text bold color="cyan">{props.title}</Text>
+      <Text bold color="cyanBright">{props.title}</Text>
       <Box marginTop={1} flexDirection="column">
         {props.children}
       </Box>
@@ -193,11 +267,16 @@ function Panel(props: { title: string; children: React.ReactNode; width?: number
   );
 }
 
+function StatusChip(props: { label: string; value: string; tone?: "default" | "success" | "warning" | "muted" }) {
+  const tone = props.tone || "default";
+  const color = tone === "success" ? "green" : tone === "warning" ? "yellow" : tone === "muted" ? "gray" : "cyan";
+  return <Text color={color}>[{props.label}: {props.value}]</Text>;
+}
+
 function MessageView({ message }: { message: ConsoleMessage }) {
-  const color = message.kind === "error" ? "red" : message.kind === "result" ? "green" : message.kind === "user" ? "yellow" : "white";
   return (
     <Box flexDirection="column" marginBottom={1}>
-      <Text bold color={color}>{message.title}</Text>
+      <Text bold color={statusColor(message.kind)}>[{message.kind}] {message.title}</Text>
       <Text color={message.kind === "user" ? "white" : "gray"}>{truncateLines(message.body, message.kind === "result" ? 16 : 10)}</Text>
     </Box>
   );
@@ -227,6 +306,8 @@ function SidebarSession({ state }: { state: SessionState }) {
 
 function SidePanelView(props: {
   panel: SidePanel;
+  squads: ReturnType<typeof listAvailableSquadSummaries>;
+  currentSquad: string;
   providersData: Awaited<ReturnType<typeof runProvidersCommand>> | null;
   workflows: Awaited<ReturnType<typeof listWorkflowSummaries>>;
   recentRuns: Awaited<ReturnType<typeof listRecentRuns>>;
@@ -245,6 +326,13 @@ function SidePanelView(props: {
             <Text color="gray"> [{provider.kind}] {provider.activeModel || "auto"}</Text>
           </Text>
         ))}
+        {props.panel === "squads" && (props.squads.length > 0 ? props.squads.map((squad, index) => (
+          <Text key={squad.code}>
+            <Text color={squad.code === props.currentSquad ? "green" : "gray"}>{squad.code === props.currentSquad ? "●" : "○"}</Text>
+            <Text> {index + 1}. {squad.icon} {squad.code}</Text>
+            <Text color="gray"> {squad.name}</Text>
+          </Text>
+        )) : <Text color="gray">Nenhum squad encontrado.</Text>)}
         {props.panel === "workflows" && (props.workflows.length > 0 ? props.workflows.slice(0, 12).map((workflow) => (
           <Text key={workflow.workflowName}>{workflow.workflowName} <Text color="gray">{workflow.currentStage}</Text></Text>
         )) : <Text color="gray">Nenhum workflow ainda.</Text>)}
@@ -257,7 +345,7 @@ function SidePanelView(props: {
   );
 }
 
-function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
+function ConsoleApp({ workspaceDir, preferredSquad }: { workspaceDir: string; preferredSquad?: string }) {
   const { exit } = useApp();
   const [session, setSession] = useState<SessionState | null>(null);
   const [providersData, setProvidersData] = useState<Awaited<ReturnType<typeof runProvidersCommand>> | null>(null);
@@ -270,6 +358,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
   const [history, setHistory] = useState<string[]>([]);
   const [historyIndex, setHistoryIndex] = useState<number>(-1);
   const nextId = useRef(1);
+  const availableSquads = useMemo(() => listAvailableSquadSummaries(workspaceDir), [workspaceDir]);
   const skills = useMemo(() => {
     if (!session) {
       return [] as string[];
@@ -299,17 +388,17 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
 
   useEffect(() => {
     void (async () => {
-      const initialSession = await buildInitialState(workspaceDir);
+      const initialSession = await buildInitialState(workspaceDir, { preferredSquad });
       setSession(initialSession);
       await persistState(initialSession);
       await reloadSurfaceData();
       appendMessage(
         "system",
         "squadscli console",
-        `Workspace: ${workspaceDir}\nUse /help para ver os comandos ou digite um brief direto para executar.`,
+        `Workspace: ${workspaceDir}\nSquad: ${initialSession.squad}\nUse /help para ver os comandos, /squad next para alternar ou Ctrl+J/Ctrl+K para trocar rapido.`,
       );
     })();
-  }, [appendMessage, reloadSurfaceData, workspaceDir]);
+  }, [appendMessage, preferredSquad, reloadSurfaceData, workspaceDir]);
 
   const updateSession = useCallback(async (updater: (current: SessionState) => SessionState, message?: string) => {
     if (!session) return;
@@ -371,20 +460,32 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
     }
 
     if (command.name === "squad") {
-      const availableSquads = listAvailableSquadSummaries(workspaceDir);
+      setPanel("squads");
+      const selection = resolveSquadInput(command.argText, session.squad, availableSquads);
 
-      if (!command.argText || command.argText === "list") {
-        appendMessage("system", "Squads", availableSquads.length ? formatJson(availableSquads) : "Nenhum squad encontrado.");
+      if (selection.action === "list") {
+        appendMessage("system", "Squads", formatSquadList(availableSquads, session.squad));
         return;
       }
 
-      const nextSquad = availableSquads.find((item) => item.code === command.argText)?.code;
+      const nextSquad = selection.action === "select" ? selection.squad : undefined;
       if (!nextSquad) {
-        appendMessage("error", "Squad invalido", availableSquads.map((item) => item.code).join(", ") || "Nenhum squad disponivel.");
+        appendMessage("error", "Squad invalido", `${formatSquadList(availableSquads, session.squad)}\n\nUse /squad <numero|codigo|next|prev>.`);
         return;
       }
 
-      await updateSession((current) => ({ ...current, squad: nextSquad }), `Squad definido para ${nextSquad}.`);
+      if (nextSquad === session.squad) {
+        appendMessage("system", "Squad mantido", `Continuando com ${nextSquad}.`);
+        return;
+      }
+
+      await updateSession((current) => ({ ...current, squad: nextSquad }), `Squad definido para ${nextSquad}.\n\n${formatSquadList(availableSquads, nextSquad)}`);
+      return;
+    }
+
+    if (command.name === "squads") {
+      setPanel("squads");
+      appendMessage("system", "Squads", formatSquadList(availableSquads, session.squad));
       return;
     }
 
@@ -536,7 +637,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
     }
 
     appendMessage("error", "Comando desconhecido", `/${command.name}`);
-  }, [appendMessage, exit, providersData, recentRuns, reloadSurfaceData, runWorkflow, session, skills, updateSession, workflows, workspaceDir]);
+  }, [appendMessage, availableSquads, exit, providersData, recentRuns, reloadSurfaceData, runWorkflow, session, skills, updateSession, workflows, workspaceDir]);
 
   const submit = useCallback(async () => {
     const value = inputValue.trim();
@@ -569,7 +670,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
     }
 
     if (key.tab) {
-      setPanel((current) => PANEL_ORDER[(PANEL_ORDER.indexOf(current) + 1) % PANEL_ORDER.length]);
+      setPanel((current) => cyclePanel(current, 1));
       return;
     }
 
@@ -580,6 +681,24 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
 
     if (key.ctrl && value === "l") {
       setMessages([]);
+      return;
+    }
+
+    if (session && key.ctrl && value === "j") {
+      void updateSession(
+        (current) => ({ ...current, squad: cycleSquad(current.squad, 1, availableSquads) }),
+        `Squad definido para ${cycleSquad(session.squad, 1, availableSquads)}.`,
+      );
+      setPanel("squads");
+      return;
+    }
+
+    if (session && key.ctrl && value === "k") {
+      void updateSession(
+        (current) => ({ ...current, squad: cycleSquad(current.squad, -1, availableSquads) }),
+        `Squad definido para ${cycleSquad(session.squad, -1, availableSquads)}.`,
+      );
+      setPanel("squads");
       return;
     }
 
@@ -608,7 +727,7 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
         return next;
       });
     }
-  });
+  }, { isActive: true });
 
   if (!session) {
     return (
@@ -622,17 +741,39 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
   return (
     <Box flexDirection="column">
       <Box justifyContent="space-between" marginBottom={1}>
-        <Box>
-          <Text color="cyan" bold>squadscli</Text>
-          <Text color="gray">  modern terminal workspace</Text>
+        <Box flexDirection="column">
+          <Text color="cyanBright" bold>SquadsCli</Text>
+          <Text color="gray">agent shell for multi-squad execution</Text>
         </Box>
-        <Text color="magenta">{path.basename(workspaceDir)}</Text>
+        <Box flexDirection="column" alignItems="flex-end">
+          <Text color="magenta">{path.basename(workspaceDir)}</Text>
+          <Text color="gray">{availableSquads.length} squads loaded</Text>
+        </Box>
+      </Box>
+
+      <Box marginBottom={1} gap={1} flexWrap="wrap">
+        <StatusChip label="squad" value={session.squad} />
+        <StatusChip label="provider" value={session.provider} tone={providersData?.providers.find((item) => item.provider === session.provider)?.ready ? "success" : "warning"} />
+        <StatusChip label="stage" value={session.stage} tone="muted" />
+        <StatusChip label="mode" value={session.dryRun ? "dry-run" : "live"} tone={session.dryRun ? "warning" : "success"} />
+      </Box>
+
+      <Box marginBottom={1} borderStyle="round" borderColor="gray" paddingX={1}>
+        <Text color="gray">Quick switch: </Text>
+        <Text color="white">/squad 1</Text>
+        <Text color="gray">  </Text>
+        <Text color="white">/squad next</Text>
+        <Text color="gray">  </Text>
+        <Text color="white">Ctrl+J / Ctrl+K</Text>
+        <Text color="gray">  Tab alterna o painel lateral</Text>
       </Box>
 
       <Box gap={1}>
         <Panel title="Session" width={36}>
           <SidebarSession state={session} />
           <Box marginTop={1} flexDirection="column">
+            <Text color="gray">Ctrl+J/K: troca squad</Text>
+            <Text color="gray">/squad 1..N: escolhe pelo indice</Text>
             <Text color="gray">Tab: alterna painel direito</Text>
             <Text color="gray">Up/Down: historico de comandos</Text>
             <Text color="gray">Esc: limpa input</Text>
@@ -650,21 +791,21 @@ function ConsoleApp({ workspaceDir }: { workspaceDir: string }) {
           )}
         </Panel>
 
-        <Panel title="Context" width={42}>
-          <SidePanelView panel={panel} providersData={providersData} workflows={workflows} recentRuns={recentRuns} skills={skills} />
+        <Panel title="Context" width={48}>
+          <SidePanelView panel={panel} squads={availableSquads} currentSquad={session.squad} providersData={providersData} workflows={workflows} recentRuns={recentRuns} skills={skills} />
         </Panel>
       </Box>
 
       <Box marginTop={1} borderStyle="round" borderColor={busy ? "yellow" : "cyan"} paddingX={1} flexDirection="column">
         <Text color="gray">Prompt {busy ? "· running" : "· ready"}</Text>
-        <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Digite um brief ou um slash command como /help" />
+        <TextInput value={inputValue} onChange={setInputValue} onSubmit={() => { void submit(); }} placeholder="Descreva a tarefa ou use /squad next, /provider codex, /stage full-run" />
       </Box>
     </Box>
   );
 }
 
-async function runConsoleFallback(workspaceDir: string) {
-  const state = await buildInitialState(workspaceDir);
+async function runConsoleFallback(workspaceDir: string, preferredSquad?: string) {
+  const state = await buildInitialState(workspaceDir, { preferredSquad });
   output.write("squadscli console\n");
   output.write("Esta interface moderna precisa de um terminal TTY interativo.\n");
   output.write(`Workspace: ${workspaceDir}\n`);
@@ -673,13 +814,13 @@ async function runConsoleFallback(workspaceDir: string) {
   output.write("Abra em um terminal real e rode: squadscli console\n");
 }
 
-export async function runConsoleCommand(workspaceDir: string) {
+export async function runConsoleCommand(workspaceDir: string, preferredSquad?: string) {
   if (!input.isTTY || !output.isTTY) {
-    await runConsoleFallback(workspaceDir);
+    await runConsoleFallback(workspaceDir, preferredSquad);
     return;
   }
 
-  const app = render(<ConsoleApp workspaceDir={workspaceDir} />, {
+  const app = render(<ConsoleApp workspaceDir={workspaceDir} preferredSquad={preferredSquad} />, {
     stdin: input,
     stdout: output,
     exitOnCtrlC: true,
